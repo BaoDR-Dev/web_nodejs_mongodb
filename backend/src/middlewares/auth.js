@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const User = require('../models/auth/User');
 
 const rolesPriority = {
     'Admin': 3,

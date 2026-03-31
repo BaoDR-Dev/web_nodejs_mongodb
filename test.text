@@ -1,0 +1,254 @@
+=====================================================================
+FILE: Attributes.js
+=====================================================================
+const mongoose = require('mongoose');
+
+const SizeSchema = new mongoose.Schema({ size_name: { type: String, required: true, unique: true } });
+const ColorSchema = new mongoose.Schema({ color_name: { type: String, required: true }, hex_code: String });
+const TypeSchema = new mongoose.Schema({ type_name: { type: String, required: true } });
+
+module.exports = {
+    Size: mongoose.model('P_Size', SizeSchema),
+    Color: mongoose.model('P_Color', ColorSchema),
+    Type: mongoose.model('P_Type', TypeSchema)
+};
+
+=====================================================================
+FILE: Brand.js
+=====================================================================
+// Brand.js
+const mongoose = require('mongoose');
+const BrandSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    origin: String
+});
+module.exports = mongoose.model('Brand', BrandSchema);
+
+=====================================================================
+FILE: Category.js
+=====================================================================
+const mongoose = require('mongoose');
+const CategorySchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    parent_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null }
+});
+module.exports = mongoose.model('Category', CategorySchema);
+
+=====================================================================
+FILE: Customer.js
+=====================================================================
+const mongoose = require('mongoose');
+
+const CustomerSchema = new mongoose.Schema({
+    full_name: { type: String, required: true },
+    phone: { type: String, unique: true },
+    sex: { type: String },
+    address: { type: String },
+    total_spending: { type: Number, default: 0 },
+    // Liên kết ngược lại User để biết hồ sơ này của tài khoản nào
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } 
+}, { timestamps: true });
+
+module.exports = mongoose.model('Customer', CustomerSchema);
+
+=====================================================================
+FILE: Gallery.js
+=====================================================================
+const mongoose = require('mongoose');
+const GallerySchema = new mongoose.Schema({
+    image_url: { type: String, required: true },
+    category_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+    public_id: String // Dùng để xóa ảnh sau này
+}, { timestamps: true });
+module.exports = mongoose.model('Gallery', GallerySchema);
+
+=====================================================================
+FILE: Inventory.js
+=====================================================================
+
+const mongoose = require('mongoose');
+const InventorySchema = new mongoose.Schema({
+    variant_id: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductVariant' },
+    location_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Location' },
+    quantity: { type: Number, default: 0 }
+});
+module.exports = mongoose.model('Inventory', InventorySchema);
+
+=====================================================================
+FILE: Location.js
+=====================================================================
+const mongoose = require('mongoose'); // THÊM DÒNG NÀY
+
+const LocationSchema = new mongoose.Schema({
+    warehouse_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
+    location_name: { type: String, required: true },
+    description: { type: String },
+    status: { type: String, enum: ['Active', 'Full', 'Maintenance'], default: 'Active' }
+}, { timestamps: true });
+
+// Ràng buộc: Tên kệ là duy nhất TRONG CÙNG MỘT KHO
+LocationSchema.index({ warehouse_id: 1, location_name: 1 }, { unique: true });
+
+module.exports = mongoose.model('Location', LocationSchema);
+
+=====================================================================
+FILE: Order.js
+=====================================================================
+const mongoose = require('mongoose');
+const OrderSchema = new mongoose.Schema({
+    order_type: { type: String, enum: ['IN', 'OUT'], required: true }, // Nhập/Xuất
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    customer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+    warehouse_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
+    status: { type: String, enum: ['Draft', 'Completed', 'Cancelled'], default: 'Draft' },
+    total_price: { type: Number, default: 0 },
+    // Cập nhật mảng payments trong OrderSchema
+    payments: [{
+        method: { 
+            type: String, 
+            enum: ['Cash', 'Transfer', 'Card', 'COD', 'Momo'], // Thêm 'Momo' vào đây
+            required: true 
+        },
+        amount: { type: Number, required: true },
+        payment_date: { type: Date, default: Date.now },
+        transaction_id: { type: String } // Thêm trường này để lưu mã giao dịch từ MoMo
+    }],
+    details: [{
+        variant_id: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductVariant' },
+        quantity: { type: Number, required: true },
+        unit_price: { type: Number, required: true }
+    }]
+}, { timestamps: true });
+module.exports = mongoose.model('Order', OrderSchema);
+
+=====================================================================
+FILE: Product.js
+=====================================================================
+const mongoose = require('mongoose');
+const ProductSchema = new mongoose.Schema({
+    sku: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    category_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+    brand_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Brand' },
+    unit: { type: String, default: 'Cái' },
+    description: String
+}, { timestamps: true });
+module.exports = mongoose.model('Product', ProductSchema);
+
+=====================================================================
+FILE: ProductImage.js
+=====================================================================
+const mongoose = require('mongoose');
+const ProductImageSchema = new mongoose.Schema({
+    variant_id: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductVariant' },
+    image_url: { type: String, required: true },
+    is_primary: { type: Boolean, default: false }
+});
+module.exports = mongoose.model('P_Image', ProductImageSchema);
+
+=====================================================================
+FILE: ProductVariant.js
+=====================================================================
+const mongoose = require('mongoose');
+const ProductVariantSchema = new mongoose.Schema({
+    product_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    sku: { type: String, unique: true, required: true },
+    color_id: { type: mongoose.Schema.Types.ObjectId, ref: 'P_Color' },
+    size_id: { type: mongoose.Schema.Types.ObjectId, ref: 'P_Size' },
+    type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'P_Type' },
+    price: { type: Number, required: true },
+    stock_quantity: { type: Number, default: 0 } // Tổng tồn thực tế
+}, { timestamps: true });
+module.exports = mongoose.model('ProductVariant', ProductVariantSchema);
+
+=====================================================================
+FILE: Role.js
+=====================================================================
+const mongoose = require('mongoose');
+const RoleSchema = new mongoose.Schema({
+    role_name: { type: String, required: true, unique: true }
+});
+module.exports = mongoose.model('Role', RoleSchema);
+
+=====================================================================
+FILE: Staff.js
+=====================================================================
+const mongoose = require('mongoose');
+
+const StaffSchema = new mongoose.Schema({
+    user_id: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'User', 
+        required: true, 
+        unique: true 
+    },
+    full_name: { type: String, required: true },
+    phone: { type: String },
+    position: { 
+        type: String, 
+        enum: ['Admin', 'Thủ kho', 'Nhân viên bán hàng'], 
+        default: 'Nhân viên bán hàng' 
+    },
+    salary: { type: Number, default: 0 },
+    hire_date: { type: Date, default: Date.now },
+    status: { type: String, enum: ['Đang làm việc', 'Đã nghỉ việc'], default: 'Đang làm việc' }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Staff', StaffSchema);
+
+=====================================================================
+FILE: Supplier.js
+=====================================================================
+const mongoose = require('mongoose');
+const SupplierSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    contact_info: String
+});
+module.exports = mongoose.model('Supplier', SupplierSchema);
+
+=====================================================================
+FILE: User.js
+=====================================================================
+const mongoose = require('mongoose');
+
+const UserSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    password: { type: String, required: true }, 
+    email: { type: String, unique: true },    
+    
+    // Quyền: Admin, Staff, hoặc Customer
+    role_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Role', required: true },
+
+    // Nếu là Khách hàng thì điền vào đây
+    customer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+
+    // Nếu là Nhân viên/Admin thì điền vào đây (Bổ sung cái này)
+    staff_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff' },
+
+    status: { type: String, enum: ['Active', 'Banned'], default: 'Active' }
+}, { timestamps: true });
+
+module.exports = mongoose.model('User', UserSchema);
+
+=====================================================================
+FILE: Warehouse.js
+=====================================================================
+const mongoose = require('mongoose'); // THÊM DÒNG NÀY
+
+const WarehouseSchema = new mongoose.Schema({
+    warehouse_name: { type: String, required: true, unique: true, trim: true },
+    address: { type: String, required: true },
+    capacity: { type: Number, default: 0 },
+    manager_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff' }
+}, { 
+    timestamps: true,
+    toJSON: { virtuals: true }, // Cho phép hiển thị virtuals khi chuyển sang JSON
+    toObject: { virtuals: true }
+});
+
+// Tạo trường ảo 'locations'
+WarehouseSchema.virtual('locations', {
+    ref: 'Location',
+    localField: '_id',
+    foreignField: 'warehouse_id'
+});

@@ -1,0 +1,26 @@
+{
+  "name": "da_web",
+  "version": "1.0.0",
+  "description": "Monorepo với Backend (Node.js/Express) và Frontend (React)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"cd backend && npm start\" \"cd frontend && npm start\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BaoDR-Dev/DoAn_N-nodejs.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/BaoDR-Dev/DoAn_N-nodejs/issues"
+  },
+  "homepage": "https://github.com/BaoDR-Dev/DoAn_N-nodejs#readme",
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  }
+  
+}
