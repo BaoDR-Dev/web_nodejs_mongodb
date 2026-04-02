@@ -83,8 +83,9 @@ export const orderAPI = {
 
 // ── PAYMENT ───────────────────────────────────────────────────────────────────
 export const paymentAPI = {
-  createMomo:   (data) => api.post('/payment/momo/create', data),
-  checkStatus:  (id)   => api.get(`/payment/momo/status/${id}`),
+  initMomo:           (data) => api.post('/payment/momo/init', data),
+  checkSessionStatus: (id)   => api.get(`/payment/momo/session-status/${id}`),
+  checkStatus:        (id)   => api.get(`/payment/momo/status/${id}`),
 };
 
 // ── VOUCHERS ──────────────────────────────────────────────────────────────────

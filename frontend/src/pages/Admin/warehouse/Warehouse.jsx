@@ -93,6 +93,11 @@ export function AdminLocations() {
   const [filterWh, setFilterWh]     = useState('');
   const [form, setForm] = useState({ warehouse_id: '', location_name: '', description: '', status: 'Active' });
 
+  // --- STATE MỚI CHO TÍNH NĂNG XEM HÀNG TRÊN KỆ ---
+  const [showItems, setShowItems] = useState(false);
+  const [shelfItems, setShelfItems] = useState([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+
   const fetch = useCallback(async () => {
     setLoading(true);
     try {
@@ -103,6 +108,7 @@ export function AdminLocations() {
   }, [filterWh]);
 
   useEffect(() => { fetch(); }, [fetch]);
+  
   useEffect(() => {
     warehouseAPI.getAll().then(r => setWarehouses(r.data.data || [])).catch(() => {});
   }, []);
@@ -110,8 +116,8 @@ export function AdminLocations() {
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      if (selected) { await locationAPI.update(selected._id, form); toast.success('Đã cập nhật!'); }
-      else          { await locationAPI.create(form); toast.success('Đã tạo kệ!'); }
+      if (selected && !showItems) { await locationAPI.update(selected._id, form); toast.success('Đã cập nhật!'); }
+      else { await locationAPI.create(form); toast.success('Đã tạo kệ!'); }
       setShowModal(false); setSelected(null); fetch();
     } catch (err) { toast.error(err.response?.data?.message || 'Lỗi'); }
   };
@@ -123,6 +129,22 @@ export function AdminLocations() {
     finally { setDeleting(false); }
   };
 
+  // --- HÀM MỚI: XEM HÀNG TRÊN KỆ ---
+  const viewItemsOnShelf = async (location) => {
+    setSelected(location);
+    setShowItems(true);
+    setLoadingItems(true);
+    try {
+      // Gọi API kiểm kho lọc theo ID của kệ này
+      const { data } = await stockAPI.audit({ location_id: location._id });
+      setShelfItems(data.data || []);
+    } catch (err) {
+      toast.error('Lỗi tải danh sách hàng hóa');
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
   const statusColor = { Active: 'green', Full: 'red', Maintenance: 'amber' };
 
   const columns = [
@@ -132,6 +154,12 @@ export function AdminLocations() {
     { header: 'Trạng thái', render: r => <Badge color={statusColor[r.status] || 'gray'}>{r.status}</Badge> },
     { header: 'Thao tác', render: r => (
       <div className="flex gap-2">
+        {/* NÚT MỚI: XEM HÀNG */}
+        <button onClick={() => viewItemsOnShelf(r)}
+          className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100">
+          📦 Xem hàng
+        </button>
+
         <button onClick={() => { setSelected(r); setForm({ warehouse_id: r.warehouse_id?._id, location_name: r.location_name, description: r.description, status: r.status }); setShowModal(true); }}
           className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded hover:bg-amber-100">Sửa</button>
         <button onClick={() => { setSelected(r); setShowDelete(true); }}
@@ -156,7 +184,9 @@ export function AdminLocations() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
         <Table columns={columns} data={locations} loading={loading} emptyText="Chưa có kệ hàng" />
       </div>
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={selected ? 'Sửa kệ' : 'Thêm kệ mới'} size="sm">
+
+      {/* Modal Sửa/Thêm Kệ */}
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={selected && !showItems ? 'Sửa kệ' : 'Thêm kệ mới'} size="sm">
         <form onSubmit={handleSave} className="space-y-4">
           <Field label="Kho" required>
             <select value={form.warehouse_id} onChange={e => setForm({...form, warehouse_id: e.target.value})} required
@@ -180,8 +210,42 @@ export function AdminLocations() {
           </div>
         </form>
       </Modal>
+
       <Confirm open={showDelete} onClose={() => setShowDelete(false)} onConfirm={handleDelete} loading={deleting}
         title="Xóa kệ" message={`Xóa kệ "${selected?.location_name}"?`} />
+
+      {/* --- MODAL MỚI: XEM HÀNG TRÊN KỆ --- */}
+      <Modal open={showItems} onClose={() => setShowItems(false)} title={`Hàng hóa trên kệ: ${selected?.location_name}`} size="lg">
+        {loadingItems ? (
+          <p className="text-center py-4 text-gray-500">Đang tải dữ liệu...</p>
+        ) : (
+          <div className="border rounded-xl overflow-hidden">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-4 py-2 font-semibold">Sản phẩm</th>
+                  <th className="px-4 py-2 font-semibold">Mã SKU</th>
+                  <th className="px-4 py-2 font-semibold text-center text-blue-600">SL trên kệ này</th>
+                  <th className="px-4 py-2 font-semibold text-center text-gray-500">Tổng tồn kho</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {shelfItems.map((item, i) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 font-medium">{item.product || '—'}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{item.variant_sku || '—'}</td>
+                    <td className="px-4 py-2 text-center font-bold text-blue-600">{item.system_quantity}</td>
+                    <td className="px-4 py-2 text-center text-gray-500">{item.total_stock}</td>
+                  </tr>
+                ))}
+                {shelfItems.length === 0 && (
+                  <tr><td colSpan="4" className="text-center py-6 text-gray-400">Kệ này đang trống, chưa có hàng hóa.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

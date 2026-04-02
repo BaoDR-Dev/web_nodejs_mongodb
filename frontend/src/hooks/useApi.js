@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/Common/Toast';
 
 export const useApi = (apiFn, opts = {}) => {
   const [data, setData]       = useState(opts.initial ?? null);

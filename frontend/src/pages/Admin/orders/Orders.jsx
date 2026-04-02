@@ -3,7 +3,8 @@ import { orderAPI, shipmentAPI } from '../../../api/services';
 import { Table, Badge, Modal, Field, Input, Select, Pagination, fmtVND, fmtDate, statusColor, PageLoader } from '../../../components/Common/UI';
 import { toast } from '../../../components/Common/Toast';
 
-const STATUS_COLORS = { Draft: 'amber', Completed: 'green', Cancelled: 'red' };
+const STATUS_COLORS = { Draft: 'amber', Completed: 'green', Cancelled: 'red', Returned: 'orange' };
+const STATUS_LABELS = { Draft: 'Nháp', Completed: 'Hoàn thành', Cancelled: 'Đã hủy', Returned: 'Đã trả' };
 
 export default function AdminOrders() {
   const [orders, setOrders]     = useState([]);
@@ -33,7 +34,7 @@ export default function AdminOrders() {
     setProcessing(true);
     try {
       await orderAPI.updateStatus(id, { status });
-      toast.success(`Đơn hàng đã chuyển sang ${status}`);
+      toast.success(`Đơn hàng đã chuyển sang ${STATUS_LABELS[status] || status}`);
       fetch();
       if (showDetail && selected?._id === id) {
         const { data } = await orderAPI.getById(id);
@@ -49,6 +50,8 @@ export default function AdminOrders() {
     try {
       await shipmentAPI.create({ ...shipForm, order_id: selected._id });
       toast.success('Đã tạo vận đơn!');
+      // Auto complete the order when shipped
+      await handleStatus(selected._id, 'Completed');
       setShowShipment(false);
     } catch (err) { toast.error(err.response?.data?.message || 'Lỗi tạo vận đơn'); }
     finally { setProcessing(false); }
@@ -72,14 +75,13 @@ export default function AdminOrders() {
     )},
     { header: 'Tổng tiền', render: r => <span className="font-semibold text-sm">{fmtVND(r.total_price)}</span> },
     { header: 'Loại', render: r => <Badge color={r.order_type === 'IN' ? 'blue' : 'purple'}>{r.order_type}</Badge> },
-    { header: 'Trạng thái', render: r => <Badge color={STATUS_COLORS[r.status]}>{r.status}</Badge> },
+    { header: 'Trạng thái', render: r => <Badge color={STATUS_COLORS[r.status]}>{STATUS_LABELS[r.status] || r.status}</Badge> },
     { header: 'Ngày tạo', render: r => <span className="text-xs text-gray-500">{fmtDate(r.createdAt)}</span> },
     { header: 'Thao tác', render: r => (
       <div className="flex gap-2">
         <button onClick={() => openDetail(r)} className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100">Chi tiết</button>
         {r.status === 'Draft' && r.order_type === 'OUT' && (
           <>
-            <button onClick={() => handleStatus(r._id, 'Completed')} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100">Duyệt</button>
             <button onClick={() => handleStatus(r._id, 'Cancelled')} className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100">Hủy</button>
           </>
         )}
@@ -104,9 +106,10 @@ export default function AdminOrders() {
         <select value={filter.status} onChange={e => setFilter({...filter, status: e.target.value})}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           <option value="">Tất cả trạng thái</option>
-          <option value="Draft">Draft</option>
-          <option value="Completed">Completed</option>
-          <option value="Cancelled">Cancelled</option>
+          <option value="Draft">Chờ xử lý</option>
+          <option value="Completed">Hoàn thành</option>
+          <option value="Cancelled">Đã hủy</option>
+          <option value="Returned">Đã trả</option>
         </select>
       </div>
 

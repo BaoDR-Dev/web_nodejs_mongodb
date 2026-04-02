@@ -13,6 +13,7 @@ const menu = [
     { path: '/admin/attributes', icon: '🎨', label: 'Thuộc tính' },
   ]},
   { group: 'Đơn hàng', items: [
+    { path: '/admin/import-orders', icon: '📥', label: 'Nhập kho' },
     { path: '/admin/orders',    icon: '📦', label: 'Đơn hàng' },
     { path: '/admin/shipments', icon: '🚚', label: 'Vận chuyển' },
     { path: '/admin/returns',   icon: '↩️', label: 'Đổi trả' },

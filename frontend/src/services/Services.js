@@ -76,7 +76,6 @@ export const orderAPI = {
   getById:       (id)       => api.get(`/orders/${id}`),
   getAll:        (params)   => api.get('/orders', { params }),
   updateStatus:  (id, data) => api.patch(`/orders/${id}/status`, data),
-  cancelMine:    (id)       => api.patch(`/orders/${id}/cancel`),
   addPayment:    (id, data) => api.post(`/orders/${id}/payment`, data),
   import:        (data)     => api.post('/orders/import', data),
   revenueStats:  (params)   => api.get('/orders/stats/revenue', { params }),
@@ -84,8 +83,10 @@ export const orderAPI = {
 
 // ── PAYMENT ───────────────────────────────────────────────────────────────────
 export const paymentAPI = {
-  createMomo:   (data) => api.post('/payment/momo/create', data),
-  checkStatus:  (id)   => api.get(`/payment/momo/status/${id}`),
+  initMomo:           (data) => api.post('/payment/momo/init', data),
+  verifyReturn:       (data) => api.post('/payment/momo/verify-return', data),
+  checkSessionStatus: (id)   => api.get(`/payment/momo/session-status/${id}`),
+  checkStatus:        (id)   => api.get(`/payment/momo/status/${id}`),
 };
 
 // ── VOUCHERS ──────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { categoryAPI, brandAPI, returnAPI, shipmentAPI } from '../../../api/services';
+import { categoryAPI, brandAPI, attributeAPI, returnAPI, shipmentAPI } from '../../../api/services';
 import { Table, Modal, Field, Input, Confirm, Badge, fmtDate, fmtVND } from '../../../components/Common/UI';
 import { toast } from '../../../components/Common/Toast';
 
@@ -11,7 +11,7 @@ export function AdminCategories() {
   const [showDelete, setShowDelete] = useState(false);
   const [selected, setSelected]   = useState(null);
   const [deleting, setDeleting]   = useState(false);
-  const [form, setForm]           = useState({ name: '', description: '' });
+  const [form, setForm]           = useState({ name: ''});
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -85,7 +85,7 @@ export function AdminBrands() {
   const [showDelete, setShowDelete] = useState(false);
   const [selected, setSelected]   = useState(null);
   const [deleting, setDeleting]   = useState(false);
-  const [form, setForm]           = useState({ brand_name: '', description: '' });
+  const [form, setForm] = useState({ name: '', origin: '' }); 
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -113,11 +113,11 @@ export function AdminBrands() {
   };
 
   const columns = [
-    { header: 'Thương hiệu', render: r => <span className="font-semibold">{r.brand_name}</span> },
-    { header: 'Mô tả', render: r => r.description || '—' },
+    { header: 'Thương hiệu', render: r => <span className="font-semibold">{r.brand_name || r.name || '—'}</span> },
+    { header: 'Mô tả', render: r => r.description || r.origin || '—' },
     { header: 'Thao tác', render: r => (
       <div className="flex gap-2">
-        <button onClick={() => { setSelected(r); setForm({ brand_name: r.brand_name, description: r.description }); setShowModal(true); }}
+        <button onClick={() => { setSelected(r); setForm({ brand_name: r.brand_name || r.name, description: r.description || r.origin }); setShowModal(true); }}
           className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded">Sửa</button>
         <button onClick={() => { setSelected(r); setShowDelete(true); }}
           className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded">Xóa</button>
@@ -146,7 +146,124 @@ export function AdminBrands() {
         </form>
       </Modal>
       <Confirm open={showDelete} onClose={() => setShowDelete(false)} onConfirm={handleDelete} loading={deleting}
-        title="Xóa thương hiệu" message={`Xóa "${selected?.brand_name}"?`} />
+        title="Xóa thương hiệu" message={`Xóa "${selected?.brand_name || selected?.name}"?`} />
+    </div>
+  );
+}
+
+// ── Attributes ─────────────────────────────────────────────────────────────────
+export function AdminAttributes() {
+  const [activeTab, setActiveTab] = useState('color');
+  const [attributes, setAttributes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [form, setForm] = useState({});
+
+  const tabs = [
+    { key: 'color', label: 'Màu sắc', fields: ['color_name', 'hex_code'] },
+    { key: 'size', label: 'Kích thước', fields: ['size_name'] },
+    { key: 'type', label: 'Loại', fields: ['type_name'] }
+  ];
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    try { 
+      const { data } = await attributeAPI.get(activeTab);
+      setAttributes(data.data || []); 
+    }
+    catch { toast.error('Lỗi tải thuộc tính'); }
+    finally { setLoading(false); }
+  }, [activeTab]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      if (selected) { await attributeAPI.update(activeTab, selected._id, form); toast.success('Đã cập nhật!'); }
+      else          { await attributeAPI.create(activeTab, form); toast.success('Đã tạo!'); }
+      setShowModal(false); setSelected(null); setForm({}); fetch();
+    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi'); }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try { await attributeAPI.delete(activeTab, selected._id); toast.success('Đã xóa!'); setShowDelete(false); fetch(); }
+    catch (err) { toast.error(err.response?.data?.message || 'Không thể xóa'); }
+    finally { setDeleting(false); }
+  };
+
+  const getDisplayName = (attr) => {
+    if (!attr) return '—';
+    if (activeTab === 'color') return attr.color_name;
+    if (activeTab === 'size') return attr.size_name;
+    return attr.type_name;
+  };
+
+  const getFormFields = () => {
+    const tab = tabs.find(t => t.key === activeTab);
+    return tab.fields;
+  };
+
+  const columns = [
+    { header: 'Tên', render: r => <span className="font-semibold">{getDisplayName(r)}</span> },
+    { header: activeTab === 'color' ? 'Mã hex' : 'Mô tả', render: r => r.hex_code || '—' },
+    { header: 'Thao tác', render: r => (
+      <div className="flex gap-2">
+        <button onClick={() => { 
+          setSelected(r); 
+          setForm(activeTab === 'color' ? { color_name: r.color_name, hex_code: r.hex_code } : 
+                  activeTab === 'size' ? { size_name: r.size_name } : { type_name: r.type_name }); 
+          setShowModal(true); 
+        }}
+          className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded">Sửa</button>
+        <button onClick={() => { setSelected(r); setShowDelete(true); }}
+          className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded">Xóa</button>
+      </div>
+    )},
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold">Thuộc tính sản phẩm</h2>
+        <button onClick={() => { setSelected(null); setForm({}); setShowModal(true); }}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">+ Thêm</button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4">
+        {tabs.map(tab => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === tab.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+        <Table columns={columns} data={attributes} loading={loading} emptyText={`Chưa có ${tabs.find(t => t.key === activeTab)?.label.toLowerCase()}`} />
+      </div>
+
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={`${selected ? 'Sửa' : 'Thêm'} ${tabs.find(t => t.key === activeTab)?.label}`}>
+        <form onSubmit={handleSave} className="space-y-4">
+          {getFormFields().map(field => (
+            <Field key={field} label={field === 'color_name' ? 'Tên màu' : field === 'size_name' ? 'Tên kích thước' : field === 'type_name' ? 'Tên loại' : 'Mã hex'} required={field !== 'hex_code'}>
+              <Input value={form[field] || ''} onChange={e => setForm({...form, [field]: e.target.value})} required={field !== 'hex_code'} />
+            </Field>
+          ))}
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg text-sm">Hủy</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Lưu</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Confirm open={showDelete} onClose={() => setShowDelete(false)} onConfirm={handleDelete} loading={deleting}
+        title="Xóa thuộc tính" message={`Xóa "${getDisplayName(selected)}"?`} />
     </div>
   );
 }

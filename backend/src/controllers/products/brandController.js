@@ -32,10 +32,10 @@ exports.listBrands = async (req, res) => {
         let filter = {};
 
         if (search) {
-            filter.name = { $regex: search, $options: 'i' }; // Tìm theo tên
+            filter.brand_name = { $regex: search, $options: 'i' }; // Tìm theo tên
         }
 
-        const brands = await Brand.find(filter).sort({ name: 1 });
+        const brands = await Brand.find(filter).sort({ brand_name: 1 });
         res.status(200).json({ success: true, count: brands.length, data: brands });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
