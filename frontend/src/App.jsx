@@ -10,7 +10,7 @@ import UserLayout from './components/layout/UserLayout';
 import { LoginPage, RegisterPage, ForgotPasswordPage, VerifyOtpPage } from './pages/auth/AuthPages';
 
 // User pages
-import { HomePage, ProductDetailPage, CartPage, MyOrdersPage } from './pages/user/UserPages';
+import { HomePage, ProductDetailPage, CartPage, MyOrdersPage } from './pages/user';
 import { CheckoutPage } from './pages/user/CheckoutPage';
 import { PaymentResultPage } from './pages/user/PaymentResultPage';
 // Admin pages

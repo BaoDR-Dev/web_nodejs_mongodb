@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { productAPI, categoryAPI } from '../../../api/services';
-import { PageLoader, Pagination } from '../../../components/Common/UI';
-import { toast } from '../../../components/Common/Toast';
+import { productAPI, categoryAPI } from '../../api/services';
+import { PageLoader, Pagination } from '../../components/Common/UI';
+import { toast } from '../../components/Common/Toast';
 import { ProductCard } from './components/ProductCard';
 
 export function HomePage() {

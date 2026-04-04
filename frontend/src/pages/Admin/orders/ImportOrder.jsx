@@ -10,6 +10,8 @@ export default function AdminImportOrder() {
   const [activeTab, setActiveTab] = useState('list');
   const [importOrders, setImportOrders] = useState([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
 

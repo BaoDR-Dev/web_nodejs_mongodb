@@ -1,39 +1,43 @@
 const Review = require('../../models/customers/Review');
 const Order = require('../../models/orders/Order');
 const Product = require('../../models/products/Product');
+const mongoose = require('mongoose');
 
 // ─── 1. TẠO ĐÁNH GIÁ ─────────────────────────────────────────────────────────
 exports.createReview = async (req, res) => {
     try {
-        const { product_id, order_id, rating, comment, images } = req.body;
+        const { product_id, variant_id, order_id, rating, comment, images } = req.body;
 
         if (!product_id || !rating) {
             return res.status(400).json({ success: false, message: 'Thiếu product_id hoặc rating' });
         }
 
-        // Kiểm tra sản phẩm tồn tại
         const product = await Product.findById(product_id);
         if (!product) return res.status(404).json({ success: false, message: 'Sản phẩm không tồn tại' });
 
-        // Kiểm tra đã mua hàng chưa (nếu truyền order_id)
         if (order_id) {
             const order = await Order.findOne({
                 _id: order_id,
                 user_id: req.user._id,
                 status: 'Completed',
-                'details.variant_id': { $exists: true }
+                order_type: 'OUT'
             });
             if (!order) {
-                return res.status(403).json({ success: false, message: 'Bạn cần mua và hoàn tất đơn hàng trước khi đánh giá' });
+                return res.status(403).json({ success: false, message: 'Đơn hàng không hợp lệ hoặc chưa hoàn thành' });
             }
         }
 
-        // Kiểm tra đã review chưa
-        const existing = await Review.findOne({ product_id, user_id: req.user._id });
-        if (existing) return res.status(400).json({ success: false, message: 'Bạn đã đánh giá sản phẩm này rồi' });
+        const existing = await Review.findOne({
+            variant_id: variant_id || null,
+            user_id: req.user._id,
+            order_id: order_id || null
+        });
+        if (existing) {
+            return res.status(400).json({ success: false, message: 'Bạn đã đánh giá sản phẩm này trong đơn hàng này rồi' });
+        }
 
         const review = await Review.create({
-            product_id, order_id,
+            product_id, variant_id, order_id,
             user_id: req.user._id,
             rating, comment, images
         });
@@ -41,7 +45,12 @@ exports.createReview = async (req, res) => {
         const populated = await Review.findById(review._id).populate('user_id', 'username');
         res.status(201).json({ success: true, data: populated });
     } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
+        // THÊM XỬ LÝ LỖI TRÙNG LẶP INDEX
+        if (err.code === 11000) {
+             return res.status(400).json({ success: false, message: 'Đánh giá cho sản phẩm này ở đơn hàng này đã tồn tại.' });
+        }
+        // Đổi chữ "error:" thành "message:" để Frontend show Toast lên
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
@@ -51,7 +60,7 @@ exports.getProductReviews = async (req, res) => {
         const { product_id } = req.params;
         const { page = 1, limit = 10, rating } = req.query;
 
-        let filter = { product_id, is_visible: true };
+        let filter = { product_id: new mongoose.Types.ObjectId(product_id), is_visible: true };
         if (rating) filter.rating = Number(rating);
 
         const reviews = await Review.find(filter)
@@ -62,19 +71,18 @@ exports.getProductReviews = async (req, res) => {
 
         const total = await Review.countDocuments(filter);
 
-        // Tính điểm trung bình và phân bố sao
         const stats = await Review.aggregate([
-            { $match: { product_id: require('mongoose').Types.ObjectId.createFromHexString(product_id), is_visible: true } },
+            { $match: { product_id: mongoose.Types.ObjectId.createFromHexString(product_id), is_visible: true } },
             {
                 $group: {
                     _id: null,
                     avg_rating: { $avg: '$rating' },
                     total: { $sum: 1 },
-                    five: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
-                    four: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
+                    five:  { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
+                    four:  { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
                     three: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
-                    two: { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
-                    one: { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } }
+                    two:   { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
+                    one:   { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } }
                 }
             }
         ]);
@@ -95,13 +103,29 @@ exports.getProductReviews = async (req, res) => {
     }
 };
 
-// ─── 3. CẬP NHẬT ĐÁNH GIÁ (Chủ sở hữu) ──────────────────────────────────────
+// ─── 3. LẤY ĐÁNH GIÁ CỦA USER THEO ĐƠN HÀNG ─────────────────────────────────
+exports.getReviewsByOrder = async (req, res) => {
+    try {
+        const { order_id } = req.params;
+
+        const reviews = await Review.find({
+            order_id: new mongoose.Types.ObjectId(order_id),
+            user_id: req.user._id
+        }).populate('user_id', 'username');
+
+        // Map theo variant_id để frontend dễ dùng
+        res.json({ success: true, data: reviews });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// ─── 4. CẬP NHẬT ĐÁNH GIÁ (Chủ sở hữu) ──────────────────────────────────────
 exports.updateReview = async (req, res) => {
     try {
         const review = await Review.findById(req.params.id);
         if (!review) return res.status(404).json({ success: false, message: 'Không tìm thấy đánh giá' });
 
-        // Chỉ người viết hoặc Admin mới sửa được
         if (review.user_id.toString() !== req.user._id.toString() && req.user.role_name !== 'Admin') {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền sửa đánh giá này' });
         }
@@ -115,11 +139,11 @@ exports.updateReview = async (req, res) => {
         const populated = await Review.findById(review._id).populate('user_id', 'username');
         res.json({ success: true, data: populated });
     } catch (err) {
-        res.status(400).json({ success: false, error: err.message });
+        res.status(400).json({ success: false, message: err.message });
     }
 };
 
-// ─── 4. ADMIN ẨN / HIỆN ĐÁNH GIÁ ─────────────────────────────────────────────
+// ─── 5. ADMIN ẨN / HIỆN ĐÁNH GIÁ ─────────────────────────────────────────────
 exports.toggleVisibility = async (req, res) => {
     try {
         const review = await Review.findById(req.params.id);
@@ -133,7 +157,7 @@ exports.toggleVisibility = async (req, res) => {
     }
 };
 
-// ─── 5. XÓA ĐÁNH GIÁ ─────────────────────────────────────────────────────────
+// ─── 6. XÓA ĐÁNH GIÁ ─────────────────────────────────────────────────────────
 exports.deleteReview = async (req, res) => {
     try {
         const review = await Review.findById(req.params.id);
@@ -150,7 +174,7 @@ exports.deleteReview = async (req, res) => {
     }
 };
 
-// ─── 6. DANH SÁCH TẤT CẢ REVIEW (Admin quản lý) ─────────────────────────────
+// ─── 7. DANH SÁCH TẤT CẢ REVIEW (Admin quản lý) ─────────────────────────────
 exports.getAllReviews = async (req, res) => {
     try {
         const { is_visible, product_id, rating, page = 1, limit = 20 } = req.query;

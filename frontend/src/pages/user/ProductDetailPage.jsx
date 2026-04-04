@@ -1,28 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { productAPI, cartAPI, reviewAPI } from '../../../api/services';
-import { PageLoader, Spinner, fmtVND } from '../../../components/Common/UI';
-import { toast } from '../../../components/Common/Toast';
-import { useCart } from '../../../context/CartContext';
-import { useAuth } from '../../../context/AuthContext';
+import { productAPI, cartAPI, reviewAPI } from '../../api/services';
+import { PageLoader, Spinner, fmtVND, Modal, Field, Select } from '../../components/Common/UI';
+import { toast } from '../../components/Common/Toast';
+import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 
 export function ProductDetailPage() {
   const { id }  = useParams();
-  const { isCustomer } = useAuth();
+  const { user, isCustomer } = useAuth();
   const { fetchCount } = useCart();
   const [product, setProduct]     = useState(null);
   const [loading, setLoading]     = useState(true);
   const [selectedVariant, setSelected] = useState(null);
   const [qty, setQty]             = useState(1);
-  const [reviews, setReviews]     = useState([]);
   const [adding, setAdding]       = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
+  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+  const [reviews, setReviews]     = useState([]);
+  const [ratingFilter, setRatingFilter] = useState('all');
 
   useEffect(() => {
     const load = async () => {
       try {
         const [pRes, rRes] = await Promise.all([
           productAPI.getById(id),
-          reviewAPI.getByProduct(id, { limit: 10 })
+          reviewAPI.getByProduct(id, { limit: 10, ...(ratingFilter !== 'all' && { rating: ratingFilter }) })
         ]);
         setProduct(pRes.data.data);
         setSelected(pRes.data.data.variants?.[0]);
@@ -31,7 +35,7 @@ export function ProductDetailPage() {
       finally { setLoading(false); }
     };
     load();
-  }, [id]);
+  }, [id, ratingFilter]);
 
   const addToCart = async () => {
     if (!isCustomer) { toast.info('Vui lòng đăng nhập'); return; }
@@ -43,6 +47,45 @@ export function ProductDetailPage() {
       fetchCount();
     } catch (err) { toast.error(err.response?.data?.message || 'Lỗi'); }
     finally { setAdding(false); }
+  };
+
+  const openReviewModal = (review = null) => {
+    if (review) {
+      setEditingReview(review);
+      setReviewForm({ rating: review.rating, comment: review.comment || '' });
+    } else {
+      setEditingReview(null);
+      setReviewForm({ rating: 5, comment: '' });
+    }
+    setShowReviewModal(true);
+  };
+
+  const handleReview = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingReview) {
+        await reviewAPI.update(editingReview._id, {
+          rating: reviewForm.rating,
+          comment: reviewForm.comment
+        });
+        toast.success('Đã cập nhật đánh giá!');
+      } else {
+        await reviewAPI.create({
+          product_id: product._id,
+          variant_id: selectedVariant?._id,
+          rating: reviewForm.rating,
+          comment: reviewForm.comment
+        });
+        toast.success('Đã gửi đánh giá!');
+      }
+      setShowReviewModal(false);
+      setEditingReview(null);
+      setReviewForm({ rating: 5, comment: '' });
+      const rRes = await reviewAPI.getByProduct(id, { limit: 10 });
+      setReviews(rRes.data.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Lỗi gửi đánh giá');
+    }
   };
 
   if (loading) return <PageLoader />;
@@ -104,25 +147,90 @@ export function ProductDetailPage() {
       </div>
 
       {/* Reviews */}
-      {reviews.length > 0 && (
-        <div>
-          <h2 className="text-lg font-bold mb-4">Đánh giá ({reviews.length})</h2>
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold">Đánh giá ({reviews.length})</h2>
+          {isCustomer && (
+            <button onClick={() => openReviewModal(reviews.find(r => r.user_id?._id === user?._id) || null)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+              {reviews.some(r => r.user_id?._id === user?._id) ? 'Chỉnh sửa đánh giá' : 'Viết đánh giá'}
+            </button>
+          )}
+        </div>
+        {/* Rating Filter */}
+        <div className="flex gap-2 mb-4 overflow-x-auto">
+          {[
+            { value: 'all', label: 'Tất cả' },
+            { value: '5', label: '5 sao' },
+            { value: '4', label: '4 sao' },
+            { value: '3', label: '3 sao' },
+            { value: '2', label: '2 sao' },
+            { value: '1', label: '1 sao' }
+          ].map(f => (
+            <button key={f.value} onClick={() => setRatingFilter(f.value)}
+              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap ${ratingFilter === f.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {reviews.length > 0 ? (
           <div className="space-y-3">
             {reviews.map(r => (
               <div key={r._id} className="bg-white rounded-xl border border-gray-100 p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-600">
-                    {r.user_id?.username?.[0]?.toUpperCase()}
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-600">
+                      {r.user_id?.username?.[0]?.toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">{r.user_id?.username}</div>
+                      <div className="text-yellow-400">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</div>
+                    </div>
                   </div>
-                  <span className="font-medium text-sm">{r.user_id?.username}</span>
-                  <span className="text-yellow-400">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                  {r.user_id?._id === user?._id && (
+                    <button type="button" onClick={() => openReviewModal(r)}
+                      className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">
+                      Sửa
+                    </button>
+                  )}
                 </div>
                 <p className="text-sm text-gray-600">{r.comment}</p>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-8 text-gray-400">
+            <p>Chưa có đánh giá nào</p>
+            {isCustomer && <p className="text-sm mt-1">Hãy là người đầu tiên đánh giá sản phẩm này!</p>}
+          </div>
+        )}
+      </div>
+
+      {/* Review Modal */}
+      <Modal open={showReviewModal} onClose={() => setShowReviewModal(false)} title={editingReview ? 'Sửa đánh giá sản phẩm' : 'Đánh giá sản phẩm'}>
+        <form onSubmit={handleReview} className="space-y-4">
+          <p className="text-sm text-gray-600">Sản phẩm: {product?.name}</p>
+          <Field label="Đánh giá">
+            <Select value={reviewForm.rating} onChange={e => setReviewForm({...reviewForm, rating: Number(e.target.value)})}>
+              <option value={5}>⭐⭐⭐⭐⭐ (5 sao)</option>
+              <option value={4}>⭐⭐⭐⭐ (4 sao)</option>
+              <option value={3}>⭐⭐⭐ (3 sao)</option>
+              <option value={2}>⭐⭐ (2 sao)</option>
+              <option value={1}>⭐ (1 sao)</option>
+            </Select>
+          </Field>
+          <Field label="Nhận xét">
+            <textarea value={reviewForm.comment} onChange={e => setReviewForm({...reviewForm, comment: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows={3} placeholder="Nhập nhận xét của bạn..." />
+          </Field>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => { setShowReviewModal(false); setEditingReview(null); }} className="px-4 py-2 border rounded-lg text-sm">Hủy</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
+              {editingReview ? 'Cập nhật đánh giá' : 'Gửi đánh giá'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

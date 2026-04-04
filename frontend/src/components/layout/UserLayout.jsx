@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { Footer } from './Footer';
+import Chatbot from '../Common/Chatbot'; // 👈 Dòng quan trọng để sửa lỗi
 
 export default function UserLayout({ children }) {
   const { user, logout, isCustomer } = useAuth();
@@ -12,7 +14,7 @@ export default function UserLayout({ children }) {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-6">
           <Link to="/" className="font-bold text-lg text-gray-900 tracking-tight">👗 Fashion</Link>
@@ -65,11 +67,12 @@ export default function UserLayout({ children }) {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+      <main className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">{children}</main>
 
-      <footer className="bg-white border-t border-gray-100 mt-12 py-8 text-center text-sm text-gray-400">
-        © 2025 Fashion Store
-      </footer>
+      <Footer />
+
+      {/* 👈 Chatbot đã được gọi tại đây */}
+      <Chatbot />
     </div>
   );
 }

@@ -111,6 +111,7 @@ export const customerAPI = {
 // ── REVIEWS ───────────────────────────────────────────────────────────────────
 export const reviewAPI = {
   getByProduct: (pid, p) => api.get(`/reviews/product/${pid}`, { params: p }),
+  getByOrder:   (oid)    => api.get(`/reviews/order/${oid}`),
   getAll:       (params) => api.get('/reviews', { params }),
   create:       (data)   => api.post('/reviews', data),
   update:       (id, d)  => api.put(`/reviews/${id}`, d),

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { cartAPI } from '../../../api/services';
-import { fmtVND, PageLoader } from '../../../components/Common/UI';
-import { toast } from '../../../components/Common/Toast';
-import { useCart } from '../../../context/CartContext';
+import { cartAPI } from '../../api/services';
+import { fmtVND, PageLoader } from '../../components/Common/UI';
+import { toast } from '../../components/Common/Toast';
+import { useCart } from '../../context/CartContext';
 
 export function CartPage() {
   const navigate = useNavigate();
