@@ -10,7 +10,7 @@ export function ProductCard({ product }) {
   const { isCustomer } = useAuth();
   const { fetchCount } = useCart();
   const variant = product.variants?.[0];
-  const image   = variant?.images?.find(i => i.is_primary)?.image_url || variant?.images?.[0]?.image_url;
+  const image   = product.image || variant?.images?.find(i => i.is_primary)?.image_url || variant?.images?.[0]?.image_url;
 
   const addToCart = async (e) => {
     e.preventDefault();

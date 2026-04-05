@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-
+const resolveImageUrl = (url) => {
+    if (!url) return 'https://via.placeholder.com/300'; // Ảnh mặc định nếu ko có
+    if (url.startsWith('http')) return url; // Link Cloudinary -> Trả về y nguyên
+    return `http://localhost:5000/uploads/${url}`; // Link Local cũ -> Nối chuỗi
+};
 const ProductCard = ({ product }) => {
   // 1. Khởi tạo variant mặc định là cái đầu tiên có trong danh sách
   const [activeVariant, setActiveVariant] = useState(product.variants?.[0] || {});
@@ -24,11 +28,10 @@ const ProductCard = ({ product }) => {
       
       {/* KHU VỰC HÌNH ẢNH */}
       <div className="relative aspect-square mb-4 bg-gray-50 rounded-xl overflow-hidden">
-        <img 
-          // Ưu tiên lấy ảnh của biến thể (nếu có), nếu không lấy ảnh chung của sản phẩm
-          src={activeVariant.image_url || product.image || 'https://via.placeholder.com/300'} 
-          alt={product.name}
-          className="object-contain w-full h-full group-hover:scale-110 transition-transform duration-500 p-2"
+        <img
+            src={resolveImageUrl(activeVariant.images?.[0]?.image_url)}
+            alt={product.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
         
         {/* Nhãn hết hàng dựa trên biến thể đang chọn */}

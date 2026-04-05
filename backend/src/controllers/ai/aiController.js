@@ -55,9 +55,17 @@ const buildProductContext = async () => {
             : `${minPrice.toLocaleString('vi-VN')}₫ – ${maxPrice.toLocaleString('vi-VN')}₫`;
 
         const firstVariant = pvs[0];
-        const imgUrl = firstVariant
-            ? `${BACKEND}/uploads/${imageMap[firstVariant._id.toString()] || ''}`
-            : '';
+        let imgUrl = '';
+        if (firstVariant) {
+            const dbImageUrl = imageMap[firstVariant._id.toString()] || '';
+            // Kiểm tra: Nếu link đã bắt đầu bằng http (Cloudinary) thì giữ nguyên
+            // Nếu không có http (ảnh local cũ) thì mới cộng thêm BACKEND/uploads/
+            if (dbImageUrl.startsWith('http')) {
+                imgUrl = dbImageUrl;
+            } else if (dbImageUrl) {
+                imgUrl = `${BACKEND}/uploads/${dbImageUrl}`;
+            }
+        }
         const productUrl = `${FRONTEND}/products/${p._id}`;
 
         const variantDetails = pvs.map(v =>
