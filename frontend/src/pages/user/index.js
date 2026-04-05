@@ -5,3 +5,4 @@ export { CartPage } from './CartPage';
 export { MyOrdersPage } from './MyOrdersPage';
 export { PaymentResultPage } from './PaymentResultPage';
 export { CheckoutPage } from './CheckoutPage';
+export { BrandPage } from './BrandPage';

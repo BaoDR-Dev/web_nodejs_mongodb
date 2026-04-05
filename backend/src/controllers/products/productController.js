@@ -60,11 +60,11 @@ exports.createFullProduct = async (req, res) => {
 // FIX HIGH: Xóa N+1 query — gom tất cả variant và image bằng $in
 exports.searchProducts = async (req, res) => {
     try {
-        const { search, category, brand, minPrice, maxPrice, color, size, page = 1, limit = 10 } = req.query;
+        const { search, category_id, brand, minPrice, maxPrice, color, size, page = 1, limit = 10 } = req.query;
 
         let productQuery = {};
         if (search) productQuery.name = { $regex: search, $options: 'i' };
-        if (category) productQuery.category_id = category;
+        if (category_id) productQuery.category_id = category_id;
         if (brand) productQuery.brand_id = brand;
 
         // Lọc theo thuộc tính variant
@@ -76,7 +76,7 @@ exports.searchProducts = async (req, res) => {
         }
         if (color) variantQuery.color_id = color;
         if (size) variantQuery.size_id = size;
-
+ if (category_id) productQuery.category_id = category_id; 
         if (Object.keys(variantQuery).length > 0) {
             const matchedVars = await ProductVariant.find(variantQuery).select('product_id').lean();
             const pIds = [...new Set(matchedVars.map(v => v.product_id.toString()))];

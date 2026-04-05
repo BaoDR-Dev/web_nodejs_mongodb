@@ -29,38 +29,34 @@ exports.protect = async (req, res, next) => {
 };
 
 // 2. Kiểm tra Phân cấp (Chính chủ hoặc Cấp trên)
+// Sửa file src/middlewares/auth.js
 exports.checkPermission = async (req, res, next) => {
     try {
-        const currentUserId = req.user.id; // ID Admin đang đăng nhập
-        const currentUserRole = req.user.role_name; // 'Admin'
-        const targetUserId = req.params.id; // ID User muốn đổi pass
+        const currentUserId = req.user._id.toString(); // Dùng _id.toString() cho chắc chắn
+        const currentUserRole = req.user.role_name;
+        const targetUserId = req.params.id;
 
-        // QUY TẮC 0: NẾU LÀ ADMIN -> CHO QUA LUÔN (QUYỀN TỐI THƯỢNG)
-        if (currentUserRole === 'Admin') {
-            return next();
-        }
-
-        // QUY TẮC 1: NẾU TỰ SỬA CHO CHÍNH MÌNH (Customer, Staff tự sửa mình)
+        // 1. Nếu là chính chủ -> CHO QUA (Bất kể là ai)
         if (currentUserId === targetUserId) {
             return next();
         }
 
-        // QUY TẮC 2: KIỂM TRA PHÂN CẤP (Manager sửa Staff)
+        // 2. Nếu là Admin -> CHO QUA
+        if (currentUserRole === 'Admin') {
+            return next();
+        }
+
+        // 3. Phân cấp Manager sửa Staff
         const targetUser = await User.findById(targetUserId).populate('role_id');
         if (!targetUser) return res.status(404).json({ message: "User không tồn tại" });
         
         const targetUserRole = targetUser.role_id.role_name;
 
-        // Bảng ưu tiên: Admin: 3, Manager: 2, Staff: 1, Customer: 0
         if (rolesPriority[currentUserRole] > rolesPriority[targetUserRole]) {
             return next();
         }
 
-        // Nếu không thỏa mãn các điều kiện trên -> Chặn
-        return res.status(403).json({ 
-            success: false, 
-            message: "Bạn không có quyền thao tác trên tài khoản này!" 
-        });
+        return res.status(403).json({ success: false, message: "Bạn không có quyền!" });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -82,4 +78,25 @@ exports.restrictTo = (...roles) => {
         }
         next();
     };
+};
+
+exports.checkCustomerAccess = async (req, res, next) => {
+    try {
+        const currentUserRole = req.user.role_name;
+        
+        // 1. Admin/Manager/Staff được phép xem mọi thông tin khách hàng
+        if (['Admin', 'Manager', 'Staff'].includes(currentUserRole)) {
+            return next();
+        }
+
+        // 2. Nếu là Customer, chỉ được xem/sửa profile của chính mình
+        // Chúng ta so sánh ID trên URL với customer_id của User đang đăng nhập
+        if (req.user.customer_id && req.user.customer_id.toString() === req.params.id) {
+            return next();
+        }
+
+        return res.status(403).json({ success: false, message: "Bạn không có quyền truy cập hồ sơ này!" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };

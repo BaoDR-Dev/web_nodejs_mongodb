@@ -27,27 +27,14 @@ exports.getUserProfile = async (req, res) => {
 // 2. TÌM KIẾM NÂNG CAO (Theo Username, Email, Role)
 exports.searchUsers = async (req, res) => {
     try {
-        const { username, email, type } = req.query; // type: 'staff' hoặc 'customer'
+        const { username, email, type } = req.query;
         let filter = {};
-
         if (username) filter.username = { $regex: username, $options: 'i' };
-        if (email) filter.email = { $regex: email, $options: 'i' };
         
-        // Lọc theo loại tài khoản
-        if (type) {
-            if (type === 'staff') {
-                filter.staff_id = { $exists: true };
-            } else if (type === 'customer') {
-                filter.customer_id = { $exists: true };
-            } else {
-                // Nếu truyền type mà không phải staff/customer thì bắt nó trả về rỗng
-                filter._id = null; 
-                // Hoặc trả về lỗi luôn: return res.status(400).json({ message: "Type không hợp lệ" });
-            }
-        }
+        // Quan trọng: Phải lấy được cả customer_id
         const users = await User.find(filter)
             .populate('role_id', 'role_name')
-            .select('-password'); // Ẩn password khi tìm kiếm
+            .select('-password'); 
 
         res.status(200).json({ success: true, count: users.length, data: users });
     } catch (err) {

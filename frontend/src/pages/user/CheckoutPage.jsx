@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { orderAPI, paymentAPI } from '../../api/services';
+import { orderAPI, paymentAPI, voucherAPI, customerAPI } from '../../api/services';
 import { fmtVND } from '../../components/Common/UI';
 import { toast } from '../../components/Common/Toast';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 
 export function CheckoutPage() {
   const location  = useLocation();
   const navigate  = useNavigate();
   const { fetchCount } = useCart();
+  const { user } = useAuth();
 
   // Dữ liệu từ CartPage
   const selectedItems = location.state?.selectedItems || [];
@@ -18,6 +20,47 @@ export function CheckoutPage() {
   const [payMethod, setPayMethod] = useState('Cash');
   const [address,   setAddress]   = useState('');
   const [ordering,  setOrdering]  = useState(false);
+  
+  // Voucher apply
+  const [appliedVoucher, setAppliedVoucher] = useState(voucherData || null);
+  const [appliedCode, setAppliedCode] = useState(voucherCode || '');
+  const [voucherInput, setVoucherInput] = useState('');
+  const [loadingVoucher, setLoadingVoucher] = useState(false);
+
+  // Load user address on mount
+  useEffect(() => {
+    if (user?.customer_id?.address) {
+      setAddress(user.customer_id.address);
+    }
+  }, [user]);
+
+  const handleApplyVoucher = async () => {
+    if (!voucherInput.trim()) {
+      toast.error('Nhập mã voucher');
+      return;
+    }
+    setLoadingVoucher(true);
+    try {
+      const { data } = await voucherAPI.apply({ 
+        code: voucherInput.toUpperCase(),
+        order_total: selectedItems.reduce((s, i) => s + i.subtotal, 0)
+      });
+      setAppliedVoucher(data);
+      setAppliedCode(voucherInput.toUpperCase());
+      setVoucherInput('');
+      toast.success('Áp dụng voucher thành công!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Voucher không hợp lệ');
+    } finally {
+      setLoadingVoucher(false);
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setAppliedCode('');
+    setVoucherInput('');
+  };
 
   if (!selectedItems.length) {
     return (
@@ -32,7 +75,7 @@ export function CheckoutPage() {
   }
 
   const subtotal   = selectedItems.reduce((s, i) => s + i.subtotal, 0);
-  const discount   = voucherData?.discount_amount || 0;
+  const discount   = appliedVoucher?.discount_amount || 0;
   const finalTotal = subtotal - discount;
 
   const handleOrder = async () => {
@@ -50,7 +93,7 @@ export function CheckoutPage() {
         // Order thật chỉ được tạo sau khi IPN xác nhận resultCode === 0
         const { data } = await paymentAPI.initMomo({
           items,
-          voucher_code:     voucherCode || undefined,
+          voucher_code:     appliedCode || undefined,
           shipping_address: address,
         });
         sessionStorage.setItem('pending_momo_id', data.momo_order_id);
@@ -61,7 +104,7 @@ export function CheckoutPage() {
         await orderAPI.create({
           items,
           payment_method:   payMethod,
-          voucher_code:     voucherCode || undefined,
+          voucher_code:     appliedCode || undefined,
           shipping_address: address,
         });
         toast.success('Đặt hàng thành công!');
@@ -93,6 +136,51 @@ export function CheckoutPage() {
             <textarea value={address} onChange={e => setAddress(e.target.value)} rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Số nhà, tên đường, phường, quận, tỉnh/thành phố..." />
+            {user?.customer_id?.address && address !== user.customer_id.address && (
+              <button 
+                onClick={() => setAddress(user.customer_id.address)}
+                className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                ↶ Dùng địa chỉ đã lưu
+              </button>
+            )}
+          </div>
+
+          {/* Voucher */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="font-bold mb-3">🎁 Mã giảm giá</h2>
+            {appliedVoucher ? (
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                <div>
+                  <p className="font-mono text-sm font-bold text-green-700">{appliedCode}</p>
+                  <p className="text-xs text-green-600">Tiết kiệm: {fmtVND(discount)}</p>
+                </div>
+                <button 
+                  onClick={handleRemoveVoucher}
+                  className="text-green-600 hover:text-green-700 font-bold text-lg"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={voucherInput}
+                  onChange={e => setVoucherInput(e.target.value.toUpperCase())}
+                  onKeyPress={e => e.key === 'Enter' && handleApplyVoucher()}
+                  placeholder="Nhập mã voucher..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button 
+                  onClick={handleApplyVoucher}
+                  disabled={loadingVoucher || !voucherInput.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60 transition text-sm"
+                >
+                  {loadingVoucher ? '...' : 'Áp dụng'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Phương thức thanh toán */}
@@ -158,7 +246,7 @@ export function CheckoutPage() {
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-green-600">
-                  <span>Voucher <span className="font-mono text-xs bg-green-100 px-1 rounded">{voucherCode}</span></span>
+                  <span>Voucher <span className="font-mono text-xs bg-green-100 px-1 rounded">{appliedCode}</span></span>
                   <span>-{fmtVND(discount)}</span>
                 </div>
               )}

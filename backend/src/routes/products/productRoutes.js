@@ -30,7 +30,7 @@ router.post('/', managerAdmin, proCtrl.createFullProduct);
 router.post('/:productId/variants', managerAdmin, proCtrl.addVariantToProduct);
 router.put('/:id', managerAdmin, proCtrl.updateProductInfo);
 router.put('/variant/:variantId', managerAdmin, proCtrl.updateVariant);
-router.delete('/products/:id', managerAdmin, proCtrl.deleteProduct); // ĐÃ THÊM LẠI VÌ CÓ TRONG CTRL
+router.delete('/:id', managerAdmin, proCtrl.deleteProduct);
 
 // 2. Quản lý Ảnh của Biến thể (Image Management)
 // Thêm ảnh bằng Link URL có sẵn

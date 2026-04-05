@@ -5,6 +5,10 @@ import { CartProvider } from './context/CartContext';
 import Toast from './components/Common/Toast';
 import AdminLayout from './components/layout/AdminLayout';
 import UserLayout from './components/layout/UserLayout';
+import { CategoryPage } from './pages/user/CategoryPage';
+import { BrandPage } from './pages/user/BrandPage';
+
+
 
 // Auth pages
 import { LoginPage, RegisterPage, ForgotPasswordPage, VerifyOtpPage } from './pages/auth/AuthPages';
@@ -23,6 +27,10 @@ import AdminVouchers from './pages/Admin/vouchers/Vouchers';
 import { AdminWarehouses, AdminLocations, AdminStock } from './pages/Admin/warehouse/Warehouse';
 import { AdminStaff, AdminUsers, AdminSuppliers } from './pages/Admin/staff/StaffPages';
 import AdminImportOrder from './pages/Admin/orders/ImportOrder';
+import { ContactPage } from './pages/user/ContactPage';
+import { ProfilePage } from './pages/user/ProfilePage';
+import { ChangePasswordPage } from './pages/user/ChangePasswordPage';
+
 
 // ── Guards ────────────────────────────────────────────────────────────────────
 function RequireAuth({ children }) {
@@ -94,7 +102,13 @@ export default function App() {
             <Route path="/admin/users"         element={<AdminPage><AdminUsers /></AdminPage>} />
             <Route path="/admin/suppliers"     element={<AdminPage><AdminSuppliers /></AdminPage>} />
             <Route path="/admin/import-orders" element={<AdminPage><AdminImportOrder /></AdminPage>} />
-
+            <Route path="/categories" element={<UserPage><CategoryPage /></UserPage>} />
+            <Route path="/categories/:id" element={<UserPage><CategoryPage /></UserPage>} />
+            <Route path="/brands" element={<UserPage><BrandPage /></UserPage>} />
+            <Route path="/brands/:id" element={<UserPage><BrandPage /></UserPage>} />
+            <Route path="/contact" element={<UserPage><ContactPage /></UserPage>} />
+            <Route path="/profile" element={<RequireAuth><UserPage><ProfilePage /></UserPage></RequireAuth>} />
+            <Route path="/change-password" element={<RequireAuth><UserPage><ChangePasswordPage /></UserPage></RequireAuth>} />
             {/* ── Fallback ─────────────────────────────────────────────── */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

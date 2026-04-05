@@ -17,7 +17,9 @@ exports.login = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Vui lòng nhập username và mật khẩu' });
         }
 
-        const user = await User.findOne({ username }).populate('role_id', 'role_name');
+        const user = await User.findOne({ username })
+            .populate('role_id', 'role_name')
+            .populate('customer_id', 'full_name phone address');
         if (!user) {
             return res.status(401).json({ success: false, message: 'Thông tin đăng nhập không chính xác' });
         }
@@ -50,11 +52,12 @@ exports.login = async (req, res) => {
             message: 'Đăng nhập thành công',
             token,
             user: {
-                id:       user._id,
-                username: user.username,
-                email:    user.email,
-                role:     user.role_id.role_name,
-                status:   user.status
+                _id:         user._id,
+                username:    user.username,
+                email:       user.email,
+                role:        user.role_id.role_name,
+                status:      user.status,
+                customer_id: user.customer_id
             }
         });
     } catch (err) {
@@ -71,7 +74,10 @@ exports.logout = (req, res) => {
 // ─── 3. GET ME ────────────────────────────────────────────────────────────────
 exports.getMe = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).populate('role_id', 'role_name').select('-password');
+        const user = await User.findById(req.user._id)
+            .populate('role_id', 'role_name')
+            .populate('customer_id', 'full_name phone address')
+            .select('-password');
         if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
         res.json({ success: true, data: user });
     } catch (err) {

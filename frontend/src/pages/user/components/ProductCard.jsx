@@ -25,7 +25,7 @@ export function ProductCard({ product }) {
 
   return (
     <Link to={`/products/${product._id}`} className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
-      <div className="aspect-square bg-gray-50 overflow-hidden">
+      <div className="aspect-[2/3] bg-gray-50 overflow-hidden">
         {image ? (
           <img src={image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (

@@ -1,19 +1,28 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  // Sử dụng port 5000 để trỏ đúng tới Backend
+  baseURL: 'http://localhost:5000/api', 
   timeout: 15000,
+  withCredentials: true // Rất quan trọng để gửi kèm cookie/session
 });
 
+// 1. Thêm Interceptor cho Request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
+// 2. Thêm Interceptor cho Response
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    // Nếu token hết hạn hoặc không có quyền (401)
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -23,4 +32,5 @@ api.interceptors.response.use(
   }
 );
 
+// 3. Chỉ Export MỘT lần ở cuối cùng
 export default api;
