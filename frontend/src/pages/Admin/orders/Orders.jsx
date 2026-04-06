@@ -3,8 +3,8 @@ import { orderAPI, shipmentAPI } from '../../../api/services';
 import { Table, Badge, Modal, Field, Input, Select, Pagination, fmtVND, fmtDate, statusColor, PageLoader } from '../../../components/Common/UI';
 import { toast } from '../../../components/Common/Toast';
 
-const STATUS_COLORS = { Draft: 'amber', Completed: 'green', Cancelled: 'red', Returned: 'orange' };
-const STATUS_LABELS = { Draft: 'Nháp', Completed: 'Hoàn thành', Cancelled: 'Đã hủy', Returned: 'Đã trả' };
+const STATUS_COLORS = { Draft: 'amber', Shipping: 'blue', Completed: 'green', Cancelled: 'red', Returned: 'orange' };
+const STATUS_LABELS = { Draft: 'Chờ xử lý', Shipping: 'Đang vận chuyển', Completed: 'Hoàn thành', Cancelled: 'Đã hủy', Returned: 'Đã trả hàng' };
 
 export default function AdminOrders() {
   const [orders, setOrders]     = useState([]);
@@ -49,10 +49,9 @@ export default function AdminOrders() {
     setProcessing(true);
     try {
       await shipmentAPI.create({ ...shipForm, order_id: selected._id });
-      toast.success('Đã tạo vận đơn!');
-      // Auto complete the order when shipped
-      await handleStatus(selected._id, 'Completed');
+      toast.success('Đã tạo vận đơn! Đơn hàng chuyển sang Đang vận chuyển.');
       setShowShipment(false);
+      fetch();
     } catch (err) { toast.error(err.response?.data?.message || 'Lỗi tạo vận đơn'); }
     finally { setProcessing(false); }
   };
@@ -107,9 +106,10 @@ export default function AdminOrders() {
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           <option value="">Tất cả trạng thái</option>
           <option value="Draft">Chờ xử lý</option>
+          <option value="Shipping">Đang vận chuyển</option>
           <option value="Completed">Hoàn thành</option>
           <option value="Cancelled">Đã hủy</option>
-          <option value="Returned">Đã trả</option>
+          <option value="Returned">Đã trả hàng</option>
         </select>
       </div>
 
@@ -122,13 +122,27 @@ export default function AdminOrders() {
       <Modal open={showDetail} onClose={() => setShowDetail(false)} title={`Chi tiết đơn #${selected?._id?.slice(-8)}`} size="lg">
         {selected && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-3 text-sm bg-gray-50 rounded-xl p-3">
               <div><span className="text-gray-500">Khách hàng:</span> <b>{selected.customer_id?.full_name || selected.user_id?.username}</b></div>
-              <div><span className="text-gray-500">Trạng thái:</span> <Badge color={STATUS_COLORS[selected.status]}>{selected.status}</Badge></div>
+              <div className="flex items-center gap-2"><span className="text-gray-500">Trạng thái:</span> <Badge color={STATUS_COLORS[selected.status]}>{STATUS_LABELS[selected.status] || selected.status}</Badge></div>
               <div><span className="text-gray-500">Tổng tiền:</span> <b className="text-green-600">{fmtVND(selected.total_price)}</b></div>
-              <div><span className="text-gray-500">Giảm giá:</span> {fmtVND(selected.discount_amount)}</div>
-              {selected.voucher_id && <div><span className="text-gray-500">Voucher:</span> {selected.voucher_id.code}</div>}
-              <div><span className="text-gray-500">Thanh toán:</span> {selected.payments?.[0]?.method || '—'}</div>
+              <div><span className="text-gray-500">Giảm giá:</span> <span className="text-red-500">-{fmtVND(selected.discount_amount)}</span></div>
+              {selected.voucher_id && <div><span className="text-gray-500">Voucher:</span> <span className="font-mono text-xs bg-green-100 px-1 rounded">{selected.voucher_id.code}</span></div>}
+              {selected.shipping_address && <div className="col-span-2"><span className="text-gray-500">Địa chỉ:</span> {selected.shipping_address}</div>}
+              {selected.payments?.length > 0 && (
+                <div className="col-span-2 border-t pt-2 mt-1">
+                  <span className="text-gray-500 font-medium">Thanh toán:</span>
+                  <div className="mt-1 space-y-1">
+                    {selected.payments.map((p, i) => (
+                      <div key={i} className="flex justify-between text-xs bg-white rounded px-2 py-1 border border-gray-100">
+                        <span className="font-medium">{p.method}</span>
+                        <span className="text-green-600 font-semibold">{fmtVND(p.amount)}</span>
+                        {p.transaction_id && <span className="text-gray-400 font-mono">{p.transaction_id}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border rounded-xl overflow-hidden">
@@ -159,15 +173,15 @@ export default function AdminOrders() {
 
             {selected.status === 'Draft' && selected.order_type === 'OUT' && (
               <div className="flex gap-3 pt-2">
-                <button onClick={() => handleStatus(selected._id, 'Completed')} disabled={processing}
+                {/* <button onClick={() => handleStatus(selected._id, 'Completed')} disabled={processing}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-60">
                   Duyệt hoàn tất
-                </button>
-                <button onClick={() => handleStatus(selected._id, 'Cancelled')} disabled={processing}
+                </button> */}
+                {/* <button onClick={() => handleStatus(selected._id, 'Cancelled')} disabled={processing}
                   className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 disabled:opacity-60">
                   Hủy đơn
-                </button>
-                <button onClick={() => { setShowDetail(false); setShowShipment(true); }}
+                </button> */}
+                <button onClick={() => { setShowDetail(false); setShipForm({ carrier: '', tracking_code: '', shipping_fee: '', shipping_address: selected?.shipping_address || '' }); setShowShipment(true); }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
                   Tạo vận đơn
                 </button>

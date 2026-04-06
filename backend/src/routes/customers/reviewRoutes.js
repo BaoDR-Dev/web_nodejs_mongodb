@@ -15,6 +15,6 @@ router.get('/order/:order_id',        ctrl.getReviewsByOrder);   // Review của
 
 // Admin quản lý
 router.get('/', restrictTo('Admin', 'Manager'), ctrl.getAllReviews);
-router.patch('/:id/toggle', restrictTo('Admin'), ctrl.toggleVisibility);
+router.patch('/:id/toggle', restrictTo('Admin', 'Manager', 'Staff'), ctrl.toggleVisibility);
 
 module.exports = router;

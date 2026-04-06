@@ -18,6 +18,7 @@ export function CheckoutPage() {
   const voucherData   = location.state?.voucherData   || null;
 
   const [payMethod, setPayMethod] = useState('Cash');
+  const [momoType,  setMomoType]  = useState('payWithATM');
   const [address,   setAddress]   = useState('');
   const [ordering,  setOrdering]  = useState(false);
   
@@ -26,12 +27,27 @@ export function CheckoutPage() {
   const [appliedCode, setAppliedCode] = useState(voucherCode || '');
   const [voucherInput, setVoucherInput] = useState('');
   const [loadingVoucher, setLoadingVoucher] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState(null);
 
   // Load user address on mount
   useEffect(() => {
-    if (user?.customer_id?.address) {
-      setAddress(user.customer_id.address);
-    }
+    const fetchCustomer = async () => {
+      if (user?.customer_id) {
+        // user.customer_id có thể là chuỗi ID hoặc đã populate
+        const customerId = user.customer_id?._id || user.customer_id;
+        try {
+          const cRes = await customerAPI.getById(customerId);
+          const customer = cRes.data.data;
+          setCustomerInfo(customer);
+          if (customer?.address) {
+            setAddress(customer.address);
+          }
+        } catch (err) {
+          console.error('Lỗi tải thông tin khách hàng:', err);
+        }
+      }
+    };
+    fetchCustomer();
   }, [user]);
 
   const handleApplyVoucher = async () => {
@@ -45,7 +61,7 @@ export function CheckoutPage() {
         code: voucherInput.toUpperCase(),
         order_total: selectedItems.reduce((s, i) => s + i.subtotal, 0)
       });
-      setAppliedVoucher(data);
+      setAppliedVoucher(data.data);
       setAppliedCode(voucherInput.toUpperCase());
       setVoucherInput('');
       toast.success('Áp dụng voucher thành công!');
@@ -95,6 +111,7 @@ export function CheckoutPage() {
           items,
           voucher_code:     appliedCode || undefined,
           shipping_address: address,
+          request_type:     momoType,
         });
         sessionStorage.setItem('pending_momo_id', data.momo_order_id);
         window.location.href = data.pay_url;
@@ -136,9 +153,9 @@ export function CheckoutPage() {
             <textarea value={address} onChange={e => setAddress(e.target.value)} rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Số nhà, tên đường, phường, quận, tỉnh/thành phố..." />
-            {user?.customer_id?.address && address !== user.customer_id.address && (
+            {customerInfo?.address && address !== customerInfo.address && (
               <button 
-                onClick={() => setAddress(user.customer_id.address)}
+                onClick={() => setAddress(customerInfo.address)}
                 className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
               >
                 ↶ Dùng địa chỉ đã lưu
@@ -206,9 +223,22 @@ export function CheckoutPage() {
               ))}
             </div>
             {payMethod === 'Momo' && (
-              <p className="mt-3 text-xs text-purple-600 bg-purple-50 rounded-lg px-3 py-2">
-                💜 Đơn hàng chỉ được tạo sau khi thanh toán MoMo thành công. Nếu hủy, giỏ hàng vẫn còn nguyên.
-              </p>
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-gray-500 font-medium">Chọn hình thức thanh toán MoMo:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={`flex items-center gap-2 p-2.5 border rounded-xl cursor-pointer text-sm transition ${momoType === 'payWithATM' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'}`}>
+                    <input type="radio" name="momoType" value="payWithATM" checked={momoType === 'payWithATM'} onChange={() => setMomoType('payWithATM')} className="accent-purple-600" />
+                    <span>🏦 Thẻ ATM / Ngân hàng</span>
+                  </label>
+                  <label className={`flex items-center gap-2 p-2.5 border rounded-xl cursor-pointer text-sm transition ${momoType === 'captureWallet' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'}`}>
+                    <input type="radio" name="momoType" value="captureWallet" checked={momoType === 'captureWallet'} onChange={() => setMomoType('captureWallet')} className="accent-purple-600" />
+                    <span>💜 Ví MoMo / QR</span>
+                  </label>
+                </div>
+                <p className="text-xs text-purple-600 bg-purple-50 rounded-lg px-3 py-2">
+                  💜 Đơn hàng chỉ được tạo sau khi thanh toán MoMo thành công. Nếu hủy, giỏ hàng vẫn còn nguyên.
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -244,7 +274,7 @@ export function CheckoutPage() {
               <div className="flex justify-between text-gray-500">
                 <span>Tạm tính</span><span>{fmtVND(subtotal)}</span>
               </div>
-              {discount > 0 && (
+              {appliedVoucher && (
                 <div className="flex justify-between text-green-600">
                   <span>Voucher <span className="font-mono text-xs bg-green-100 px-1 rounded">{appliedCode}</span></span>
                   <span>-{fmtVND(discount)}</span>

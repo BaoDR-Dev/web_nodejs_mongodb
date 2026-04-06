@@ -27,6 +27,7 @@ import AdminVouchers from './pages/Admin/vouchers/Vouchers';
 import { AdminWarehouses, AdminLocations, AdminStock } from './pages/Admin/warehouse/Warehouse';
 import { AdminStaff, AdminUsers, AdminSuppliers } from './pages/Admin/staff/StaffPages';
 import AdminImportOrder from './pages/Admin/orders/ImportOrder';
+import AdminReviews from './pages/Admin/reviews/Reviews';
 import { ContactPage } from './pages/user/ContactPage';
 import { ProfilePage } from './pages/user/ProfilePage';
 import { ChangePasswordPage } from './pages/user/ChangePasswordPage';
@@ -102,6 +103,7 @@ export default function App() {
             <Route path="/admin/users"         element={<AdminPage><AdminUsers /></AdminPage>} />
             <Route path="/admin/suppliers"     element={<AdminPage><AdminSuppliers /></AdminPage>} />
             <Route path="/admin/import-orders" element={<AdminPage><AdminImportOrder /></AdminPage>} />
+            <Route path="/admin/reviews"       element={<AdminPage><AdminReviews /></AdminPage>} />
             <Route path="/categories" element={<UserPage><CategoryPage /></UserPage>} />
             <Route path="/categories/:id" element={<UserPage><CategoryPage /></UserPage>} />
             <Route path="/brands" element={<UserPage><BrandPage /></UserPage>} />

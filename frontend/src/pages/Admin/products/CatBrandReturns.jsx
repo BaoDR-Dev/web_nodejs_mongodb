@@ -299,12 +299,13 @@ export function AdminReturns() {
   };
 
   const statusColor = { Pending: 'amber', Approved: 'green', Rejected: 'red', Completed: 'blue' };
+  const statusLabel = { Pending: 'Chờ duyệt', Approved: 'Đã duyệt', Rejected: 'Từ chối', Completed: 'Hoàn tất' };
 
   const columns = [
     { header: '#', render: r => <span className="font-mono text-xs">{r._id.slice(-8)}</span> },
     { header: 'Khách hàng', render: r => r.customer_id?.full_name || '—' },
     { header: 'Đơn gốc', render: r => <span className="font-mono text-xs">{r.order_id?._id?.slice(-8)}</span> },
-    { header: 'Trạng thái', render: r => <Badge color={statusColor[r.status]}>{r.status}</Badge> },
+    { header: 'Trạng thái', render: r => <Badge color={statusColor[r.status]}>{statusLabel[r.status] || r.status}</Badge> },
     { header: 'Ngày tạo', render: r => <span className="text-xs text-gray-400">{fmtDate(r.createdAt)}</span> },
     { header: 'Thao tác', render: r => (
       <button onClick={() => { setSelected(r); setShowDetail(true); }}
@@ -320,10 +321,10 @@ export function AdminReturns() {
       <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4 shadow-sm">
         <select value={filterStatus} onChange={e => setFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           <option value="">Tất cả</option>
-          <option value="Pending">Pending</option>
-          <option value="Approved">Approved</option>
-          <option value="Rejected">Rejected</option>
-          <option value="Completed">Completed</option>
+          <option value="Pending">Chờ duyệt</option>
+          <option value="Approved">Đã duyệt</option>
+          <option value="Rejected">Từ chối</option>
+          <option value="Completed">Hoàn tất</option>
         </select>
       </div>
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
@@ -335,7 +336,7 @@ export function AdminReturns() {
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-xl p-3">
               <div><span className="text-gray-500">Khách:</span> <b>{selected.customer_id?.full_name}</b></div>
-              <div><span className="text-gray-500">Trạng thái:</span> <Badge color={statusColor[selected.status]}>{selected.status}</Badge></div>
+              <div><span className="text-gray-500">Trạng thái:</span> <Badge color={statusColor[selected.status]}>{statusLabel[selected.status] || selected.status}</Badge></div>
               <div><span className="text-gray-500">Ghi chú:</span> {selected.note || '—'}</div>
             </div>
             <div className="space-y-2">
@@ -396,12 +397,21 @@ export function AdminShipments() {
   };
 
   const statusColor = { Pending: 'amber', Picking: 'blue', 'In Transit': 'purple', Delivered: 'green', Failed: 'red', Returned: 'gray' };
+  const statusLabel = { Pending: 'Chờ lấy hàng', Picking: 'Đang lấy hàng', 'In Transit': 'Đang vận chuyển', Delivered: 'Đã giao', Failed: 'Giao thất bại', Returned: 'Đã hoàn trả' };
+  const statusList  = [
+    { value: 'Pending',    label: 'Chờ lấy hàng' },
+    { value: 'Picking',    label: 'Đang lấy hàng' },
+    { value: 'In Transit', label: 'Đang vận chuyển' },
+    { value: 'Delivered',  label: 'Đã giao' },
+    { value: 'Failed',     label: 'Giao thất bại' },
+    { value: 'Returned',   label: 'Đã hoàn trả' },
+  ];
 
   const columns = [
     { header: 'Đơn hàng', render: r => <span className="font-mono text-xs">{r.order_id?._id?.slice(-8) || '—'}</span> },
     { header: 'Đơn vị', render: r => r.carrier || '—' },
     { header: 'Mã vận đơn', render: r => <span className="font-mono text-xs">{r.tracking_code || '—'}</span> },
-    { header: 'Trạng thái', render: r => <Badge color={statusColor[r.status] || 'gray'}>{r.status}</Badge> },
+    { header: 'Trạng thái', render: r => <Badge color={statusColor[r.status] || 'gray'}>{statusLabel[r.status] || r.status}</Badge> },
     { header: 'Ngày tạo', render: r => <span className="text-xs text-gray-400">{fmtDate(r.createdAt)}</span> },
     { header: 'Thao tác', render: r => (
       <button onClick={() => { setSelected(r); setShowModal(true); }}
@@ -409,7 +419,6 @@ export function AdminShipments() {
     )},
   ];
 
-  const statuses = ['Pending', 'Picking', 'In Transit', 'Delivered', 'Failed', 'Returned'];
 
   return (
     <div>
@@ -423,12 +432,12 @@ export function AdminShipments() {
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Cập nhật trạng thái vận đơn" size="sm">
         {selected && (
           <div className="space-y-3">
-            <p className="text-sm text-gray-500">Trạng thái hiện tại: <Badge color={statusColor[selected.status]}>{selected.status}</Badge></p>
+            <p className="text-sm text-gray-500">Trạng thái hiện tại: <Badge color={statusColor[selected.status]}>{statusLabel[selected.status] || selected.status}</Badge></p>
             <div className="grid grid-cols-2 gap-2">
-              {statuses.filter(s => s !== selected.status).map(s => (
-                <button key={s} onClick={() => handleUpdateStatus(s)}
+              {statusList.filter(s => s.value !== selected.status).map(s => (
+                <button key={s.value} onClick={() => handleUpdateStatus(s.value)}
                   className="px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 hover:border-blue-300">
-                  → {s}
+                  → {s.label}
                 </button>
               ))}
             </div>

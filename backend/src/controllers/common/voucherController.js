@@ -73,12 +73,13 @@ exports.applyVoucher = async (req, res) => {
         const now = new Date();
         if (now < voucher.starts_at) return res.status(400).json({ success: false, message: 'Voucher chưa đến thời gian sử dụng' });
         if (now > voucher.expires_at) return res.status(400).json({ success: false, message: 'Voucher đã hết hạn' });
-        if (voucher.used_count >= voucher.max_uses) {
-            return res.status(400).json({ success: false, message: 'Voucher đã hết lượt sử dụng' });
-        }
 
         const alreadyUsed = voucher.used_by.some(id => id.toString() === req.user._id.toString());
         if (alreadyUsed) return res.status(400).json({ success: false, message: 'Bạn đã sử dụng voucher này rồi' });
+
+        if (voucher.used_count >= voucher.max_uses) {
+            return res.status(400).json({ success: false, message: 'Voucher đã hết lượt sử dụng' });
+        }
 
         if (order_total < voucher.min_order_value) {
             return res.status(400).json({

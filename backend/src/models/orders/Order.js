@@ -17,7 +17,7 @@ const OrderSchema = new mongoose.Schema({
 
     // ── Chung ─────────────────────────────────────────────────────────────────
     warehouse_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
-    status:       { type: String, enum: ['Draft', 'Completed', 'Cancelled'], default: 'Draft' },
+    status:       { type: String, enum: ['Draft', 'Completed', 'Cancelled', 'Shipping', 'Returned'], default: 'Draft' },
     total_price:  { type: Number, default: 0 },
 
     payments: [{

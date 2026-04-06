@@ -16,7 +16,8 @@ export function ProfilePage() {
         const user = data.data; // Dựa vào cấu trúc res.json({ success: true, data: user })
         
         if (user.customer_id) {
-            const cRes = await customerAPI.getById(user.customer_id);
+            const customerId = user.customer_id?._id || user.customer_id;
+            const cRes = await customerAPI.getById(customerId);
             setForm(cRes.data.data);
         } else {
             toast.error("Tài khoản của bạn không có hồ sơ khách hàng.");

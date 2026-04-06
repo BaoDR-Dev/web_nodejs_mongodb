@@ -122,7 +122,7 @@ const createOrderFromPendingSession = async (pendingSession, transId, amount, re
             } else { discount_amount = voucher.discount_value; }
             discount_amount = Math.min(Math.round(discount_amount), serverTotal);
 
-            await Voucher.findByIdAndUpdate(voucher._id, { $inc: { used_count: 1 }, $push: { used_by: user_id } }, { session: dbSession });
+            await Voucher.findByIdAndUpdate(voucher._id, { $inc: { used_count: 1 }, $addToSet: { used_by: user_id } }, { session: dbSession });
             voucher_id = voucher._id;
         }
 
@@ -134,7 +134,7 @@ const createOrderFromPendingSession = async (pendingSession, transId, amount, re
             order_type: 'OUT', user_id,
             customer_id: customer?._id,
             voucher_id, discount_amount, total_price,
-            status:  'Completed',           // Đã thanh toán xong → thẳng Completed
+            status:  'Draft',            // Chờ vận chuyển — không set Completed ngay
             details: orderDetails,
             shipping_address,
             payments: [{ method: 'Momo', amount: Number(amount), transaction_id: String(transId), payment_date: new Date(responseTime) }]
@@ -193,10 +193,11 @@ const createOrderFromPendingSession = async (pendingSession, transId, amount, re
 // POST /api/payment/momo/init
 // Frontend gửi cart data → tạo MomoPendingSession → trả payUrl
 // KHÔNG tạo Order ở bước này
+// requestType: 'captureWallet' (QR/ví MoMo) | 'payWithATM' (tài khoản ngân hàng)
 // ═══════════════════════════════════════════════════════════════════════════════
 exports.initMomoPayment = async (req, res) => {
     try {
-        const { items, voucher_code, shipping_address } = req.body;
+        const { items, voucher_code, shipping_address, request_type } = req.body;
 
         if (!items?.length)           return res.status(400).json({ success: false, message: 'Đơn hàng phải có ít nhất 1 sản phẩm' });
         if (!shipping_address?.trim()) return res.status(400).json({ success: false, message: 'Vui lòng nhập địa chỉ giao hàng' });
@@ -236,11 +237,11 @@ exports.initMomoPayment = async (req, res) => {
         const orderInfo   = 'Thanh toan don hang';
         const redirectUrl = process.env.MOMO_REDIRECT_URL || 'http://localhost:3000/payment/result';
         const ipnUrl      = process.env.MOMO_IPN_URL      || 'http://localhost:5000/api/payment/momo/ipn';
-        // requestType: 'captureWallet' = ví MoMo | 'paywithATM' = thẻ ATM nội địa
-        const requestType = 'captureWallet';
-        // extraData để '' — sandbox paywithATM không chấp nhận base64 JSON phức tạp
-        // momo_order_id đã được encode thẳng vào orderId nên không cần extraData
         const extraData   = '';
+
+        // payWithMethod hỗ trợ cả QR lẫn ATM trên sandbox MoMo
+        // Frontend truyền request_type chỉ để phân biệt UI, backend luôn dùng payWithMethod
+        const requestType = 'payWithMethod';
 
         const rawSignature = [
             `accessKey=${accessKey}`,
@@ -277,7 +278,7 @@ exports.initMomoPayment = async (req, res) => {
             expires_at:      new Date(Date.now() + 30 * 60 * 1000)
         });
 
-        console.log(`[MOMO] ✅ Session khởi tạo: ${momoOrderId}, amount=${amount}`);
+        console.log(`[MOMO] ✅ Session khởi tạo: ${momoOrderId}, amount=${amount}, type=${requestType}`);
         res.json({ success: true, pay_url: momoRes.payUrl, deep_link: momoRes.deeplink, qr_code_url: momoRes.qrCodeUrl, momo_order_id: momoOrderId, amount });
 
     } catch (err) {
@@ -414,7 +415,7 @@ exports.verifyAndCreateOrder = async (req, res) => {
             `orderId=${momo_order_id}`,
             `partnerCode=${partnerCode}`,
             `requestId=${requestId}`,
-        ].sort().join('&');
+        ].join('&');
 
         const signature = createMomoSignature(rawSignature);
 

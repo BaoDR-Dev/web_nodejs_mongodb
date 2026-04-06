@@ -22,6 +22,7 @@ router.use(protect);
 
 // --- Quyền cho Staff, Manager, Admin ---
 router.patch('/:id/status', restrictTo('Staff', 'Manager', 'Admin'), proCtrl.toggleStatus);
+router.patch('/variant/:variantId/status', restrictTo('Staff', 'Manager', 'Admin'), proCtrl.toggleVariantStatus);
 
 // --- Quyền CHỈ cho Manager và Admin ---
 

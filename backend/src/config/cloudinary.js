@@ -12,14 +12,12 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: async (req, file) => {
-        let folderName = 'general';
+        let folderName = 'products';
         try {
-            // Lấy categoryId từ URL (phải khớp với tên trong Route)
-            const categoryId = req.params.categoryId; 
+            const categoryId = req.params.categoryId;
             if (categoryId && categoryId.length === 24) {
                 const category = await Category.findById(categoryId);
                 if (category) {
-                    // Xóa dấu tiếng Việt và khoảng trắng để làm tên folder
                     folderName = category.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_');
                 }
             }

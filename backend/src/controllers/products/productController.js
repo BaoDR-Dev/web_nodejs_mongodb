@@ -60,14 +60,16 @@ exports.createFullProduct = async (req, res) => {
 // FIX HIGH: Xóa N+1 query — gom tất cả variant và image bằng $in
 exports.searchProducts = async (req, res) => {
     try {
-        const { search, category_id, brand, minPrice, maxPrice, color, size, page = 1, limit = 10 } = req.query;
+        const { search, category_id, brand, minPrice, maxPrice, color, size, page = 1, limit = 10, name, show_hidden } = req.query;
 
         let productQuery = {};
-        if (search) productQuery.name = { $regex: search, $options: 'i' };
+        if (search || name) productQuery.name = { $regex: search || name, $options: 'i' };
         if (category_id) productQuery.category_id = category_id;
         if (brand) productQuery.brand_id = brand;
+        // Admin truyền ?show_hidden=true để xem cả sản phẩm đã ẩn
+        if (show_hidden !== 'true') productQuery.is_active = true;
 
-        // Lọc theo thuộc tính variant
+        // Lọc theo thuộc tính variant — không xét is_active của variant
         let variantQuery = {};
         if (minPrice || maxPrice) {
             variantQuery.price = {};
@@ -139,7 +141,10 @@ exports.getProductDetails = async (req, res) => {
             .populate('brand_id', 'name origin');
         if (!product) return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm' });
 
-        const variants = await ProductVariant.find({ product_id: product._id })
+        // Admin truyền ?show_hidden=true để xem cả sản phẩm đã ẩn, variant không xét is_active
+        const variantFilter = { product_id: product._id };
+
+        const variants = await ProductVariant.find(variantFilter)
             .populate('color_id', 'color_name hex_code')
             .populate('size_id', 'size_name')
             .populate('type_id', 'type_name')
@@ -252,18 +257,32 @@ exports.updateVariant = async (req, res) => {
     }
 };
 
-// ─── 7. ĐỔI TRẠNG THÁI ──────────────────────────────────────────────────────
-// FIX HIGH: Kiểm tra null trước khi truy cập .status
+// ─── 7. ĐỔI TRẠNG THÁI SẢN PHẨM ────────────────────────────────────────────
 exports.toggleStatus = async (req, res) => {
     try {
         const pro = await Product.findById(req.params.id);
         if (!pro) return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm' });
 
-        pro.status = pro.status === 'Active' ? 'Inactive' : 'Active';
+        pro.is_active = !pro.is_active;
         await pro.save();
-        res.json({ success: true, status: pro.status });
+        res.json({ success: true, is_active: pro.is_active });
     } catch (error) {
         console.error('[PRODUCT] toggleStatus error:', error.message);
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+// ─── 7b. ĐỔI TRẠNG THÁI VARIANT ─────────────────────────────────────────────
+exports.toggleVariantStatus = async (req, res) => {
+    try {
+        const variant = await ProductVariant.findById(req.params.variantId);
+        if (!variant) return res.status(404).json({ success: false, message: 'Không tìm thấy biến thể' });
+
+        variant.is_active = !variant.is_active;
+        await variant.save();
+        res.json({ success: true, is_active: variant.is_active });
+    } catch (error) {
+        console.error('[PRODUCT] toggleVariantStatus error:', error.message);
         res.status(400).json({ success: false, message: error.message });
     }
 };

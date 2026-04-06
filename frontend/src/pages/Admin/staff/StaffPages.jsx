@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { staffAPI, userAPI, roleAPI, supplierAPI } from '../../../api/services';
+import { staffAPI, userAPI, supplierAPI, roleAPI } from '../../../api/services';
 import { Table, Modal, Field, Input, Select, Confirm, Pagination, SearchBar, Badge, fmtDate, fmtVND } from '../../../components/Common/UI';
 import { toast } from '../../../components/Common/Toast';
 
 // ── Staff ──────────────────────────────────────────────────────────────────────
 export function AdminStaff() {
   const [staff, setStaff]         = useState([]);
+  const [roles, setRoles]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [showDelete, setShowDelete] = useState(false);
+  const [showResign, setShowResign] = useState(false);
   const [selected, setSelected]   = useState(null);
-  const [deleting, setDeleting]   = useState(false);
+  const [resigning, setResigning] = useState(false);
   const [form, setForm] = useState({ full_name: '', phone: '', position: 'Nhân viên bán hàng', salary: '', username: '', email: '', password: '' });
 
   const fetch = useCallback(async () => {
@@ -20,22 +21,43 @@ export function AdminStaff() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    fetch();
+    roleAPI.getAll().then(r => setRoles(r.data.data || [])).catch(() => {});
+  }, [fetch]);
+
+  // Map position → role_id
+  const getRoleIdByPosition = (position) => {
+    const posToRole = { 'Admin': 'Admin', 'Thủ kho': 'Staff', 'Nhân viên bán hàng': 'Staff', 'Manager': 'Manager' };
+    const roleName = posToRole[position] || 'Staff';
+    return roles.find(r => r.role_name === roleName)?._id || '';
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      if (selected) { await staffAPI.update(selected._id, form); toast.success('Đã cập nhật!'); }
-      else          { await staffAPI.create(form); toast.success('Đã thêm nhân viên!'); }
+      if (selected) {
+        await staffAPI.update(selected._id, form);
+        toast.success('Đã cập nhật!');
+      } else {
+        const role_id = getRoleIdByPosition(form.position);
+        if (!role_id) return toast.error('Không tìm thấy role phù hợp, vui lòng thử lại');
+        await staffAPI.create({ ...form, role_id });
+        toast.success('Đã thêm nhân viên!');
+      }
       setShowModal(false); setSelected(null); fetch();
     } catch (err) { toast.error(err.response?.data?.message || 'Lỗi'); }
   };
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    try { await staffAPI.delete(selected._id); toast.success('Đã xóa!'); setShowDelete(false); fetch(); }
-    catch (err) { toast.error(err.response?.data?.message || 'Không thể xóa'); }
-    finally { setDeleting(false); }
+  const handleResign = async () => {
+    setResigning(true);
+    try {
+      await staffAPI.resign(selected._id);
+      toast.success('Đã cho nghỉ việc và khóa tài khoản!');
+      setShowResign(false);
+      fetch();
+    } catch (err) { toast.error(err.response?.data?.message || 'Không thể thực hiện'); }
+    finally { setResigning(false); }
   };
 
   const columns = [
@@ -48,8 +70,10 @@ export function AdminStaff() {
       <div className="flex gap-2">
         <button onClick={() => { setSelected(r); setForm({ full_name: r.full_name, phone: r.phone, position: r.position, salary: r.salary, status: r.status }); setShowModal(true); }}
           className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded">Sửa</button>
-        <button onClick={() => { setSelected(r); setShowDelete(true); }}
-          className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded">Xóa</button>
+        {r.status === 'Đang làm việc' && (
+          <button onClick={() => { setSelected(r); setShowResign(true); }}
+            className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded">Nghỉ việc</button>
+        )}
       </div>
     )},
   ];
@@ -91,8 +115,9 @@ export function AdminStaff() {
           </div>
         </form>
       </Modal>
-      <Confirm open={showDelete} onClose={() => setShowDelete(false)} onConfirm={handleDelete} loading={deleting}
-        title="Xóa nhân viên" message={`Xóa nhân viên "${selected?.full_name}"?`} />
+      <Confirm open={showResign} onClose={() => setShowResign(false)} onConfirm={handleResign} loading={resigning}
+        title="Cho nghỉ việc" message={`Nhân viên "${selected?.full_name}" sẽ nghỉ việc và tài khoản sẽ bị khóa. Tiếp tục?`}
+        confirmText="Xác nhận nghỉ việc" />
     </div>
   );
 }
@@ -104,19 +129,19 @@ export function AdminUsers() {
   const [page, setPage]           = useState(1);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
-  const [roles, setRoles]         = useState([]);
 
   const fetch = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await userAPI.getAll({ page, limit: 20, username: search || undefined });
-      setUsers(data.data || []); setTotal(data.total || 0);
+      // Lọc bỏ tài khoản Admin
+      const filtered = (data.data || []).filter(u => u.role_id?.role_name !== 'Admin');
+      setUsers(filtered); setTotal(data.total || 0);
     } catch { toast.error('Lỗi tải users'); }
     finally { setLoading(false); }
   }, [page, search]);
 
   useEffect(() => { fetch(); }, [fetch]);
-  useEffect(() => { roleAPI.getAll().then(r => setRoles(r.data.data || [])).catch(() => {}); }, []);
 
   const handleToggleBan = async (u) => {
     try {
@@ -125,30 +150,27 @@ export function AdminUsers() {
     } catch (err) { toast.error(err.response?.data?.message || 'Lỗi'); }
   };
 
-  const handleChangeRole = async (u, roleId) => {
-    try {
-      await userAPI.updateRole(u._id, { role_id: roleId });
-      toast.success('Đã đổi role!'); fetch();
-    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi'); }
-  };
+  // Lấy tên thật: ưu tiên staff_id.full_name, rồi customer_id.full_name
+  const getRealName = (u) => u.staff_id?.full_name || u.customer_id?.full_name || '—';
+  const getPhone    = (u) => u.staff_id?.phone     || u.customer_id?.phone     || '—';
 
   const columns = [
-    { header: 'Username', render: r => <span className="font-mono font-semibold text-sm">{r.username}</span> },
+    { header: 'Tên thật', render: r => (
+      <div>
+        <p className="font-semibold text-sm">{getRealName(r)}</p>
+        <p className="text-xs text-gray-400">{getPhone(r)}</p>
+      </div>
+    )},
+    { header: 'Username', render: r => <span className="font-mono text-sm text-gray-600">{r.username}</span> },
     { header: 'Email', render: r => <span className="text-xs text-gray-600">{r.email || '—'}</span> },
     { header: 'Role', render: r => <Badge color={{ Admin: 'purple', Manager: 'blue', Staff: 'amber', Customer: 'gray' }[r.role_id?.role_name] || 'gray'}>{r.role_id?.role_name}</Badge> },
-    { header: 'Trạng thái', render: r => <Badge color={r.status === 'Active' ? 'green' : 'red'}>{r.status}</Badge> },
+    { header: 'Trạng thái', render: r => <Badge color={r.status === 'Active' ? 'green' : 'red'}>{r.status === 'Active' ? 'Hoạt động' : 'Đã khóa'}</Badge> },
     { header: 'Ngày tạo', render: r => <span className="text-xs text-gray-400">{fmtDate(r.createdAt)}</span> },
     { header: 'Thao tác', render: r => (
-      <div className="flex gap-2 items-center">
-        <button onClick={() => handleToggleBan(r)}
-          className={`text-xs px-2 py-1 rounded ${r.status === 'Active' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-          {r.status === 'Active' ? 'Khóa' : 'Mở'}
-        </button>
-        <select className="text-xs border border-gray-200 rounded px-1 py-0.5" defaultValue={r.role_id?._id}
-          onChange={e => handleChangeRole(r, e.target.value)}>
-          {roles.map(rl => <option key={rl._id} value={rl._id}>{rl.role_name}</option>)}
-        </select>
-      </div>
+      <button onClick={() => handleToggleBan(r)}
+        className={`text-xs px-2 py-1 rounded ${r.status === 'Active' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+        {r.status === 'Active' ? 'Khóa' : 'Mở khóa'}
+      </button>
     )},
   ];
 

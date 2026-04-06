@@ -56,13 +56,13 @@ export const Modal = ({ open, onClose, title, children, size = 'md' }) => {
 };
 
 // ── Confirm Dialog ────────────────────────────────────────────────────────────
-export const Confirm = ({ open, onClose, onConfirm, title, message, loading }) => (
+export const Confirm = ({ open, onClose, onConfirm, title, message, loading, confirmText }) => (
   <Modal open={open} onClose={onClose} title={title || 'Xác nhận'} size="sm">
     <p className="text-gray-600 mb-5">{message}</p>
     <div className="flex justify-end gap-3">
       <button onClick={onClose} className="btn-secondary">Hủy</button>
       <button onClick={onConfirm} disabled={loading} className="btn-danger">
-        {loading ? <Spinner size="sm" /> : 'Xác nhận xóa'}
+        {loading ? <Spinner size="sm" /> : (confirmText || 'Xác nhận xóa')}
       </button>
     </div>
   </Modal>

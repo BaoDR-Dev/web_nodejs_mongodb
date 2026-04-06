@@ -39,4 +39,9 @@ router.delete('/:id',
     staffController.deleteStaff
 );
 
+router.patch('/:id/resign',
+    restrictTo('Admin', 'Manager'),
+    staffController.resignStaff
+);
+
 module.exports = router;

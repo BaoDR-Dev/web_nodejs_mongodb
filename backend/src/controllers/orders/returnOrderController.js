@@ -1,5 +1,6 @@
 const ReturnOrder = require('../../models/orders/ReturnOrder');
 const Order = require('../../models/orders/Order');
+const Shipment = require('../../models/orders/Shipment');
 const ProductVariant = require('../../models/products/ProductVariant');
 const Inventory = require('../../models/warehouse/Inventory');
 const StockMovement = require('../../models/warehouse/StockMovement');
@@ -103,7 +104,9 @@ exports.processReturn = async (req, res) => {
         if (note) returnOrder.note = note;
         await returnOrder.save({ session });
 
-        // Nếu duyệt: nhập lại hàng vào kho
+        const orderId = returnOrder.order_id._id || returnOrder.order_id;
+
+        // Nếu duyệt: nhập lại hàng vào kho + cập nhật đơn hàng & vận đơn
         if (status === 'Approved') {
             for (const item of returnOrder.items) {
                 const variant = await ProductVariant.findById(item.variant_id).session(session);
@@ -114,16 +117,25 @@ exports.processReturn = async (req, res) => {
 
                     await StockMovement.create([{
                         variant_id: item.variant_id,
-                        order_id: returnOrder.order_id._id,
                         movement_type: 'IN',
                         quantity_change: item.quantity,
                         quantity_before: qBefore,
                         quantity_after: qBefore + item.quantity,
-                        reason: `Nhập hàng đổi trả - đơn #${returnOrder.order_id._id}`,
+                        reason: `Xác nhận trả hàng - đơn #${orderId}`,
                         created_by: req.user._id
                     }], { session });
                 }
             }
+
+            // Cập nhật đơn hàng → Đã trả hàng
+            await Order.findByIdAndUpdate(orderId, { status: 'Returned' }, { session });
+
+            // Cập nhật vận đơn → Returned (nếu có)
+            await Shipment.findOneAndUpdate(
+                { order_id: orderId },
+                { status: 'Returned', note: note || 'Xác nhận trả hàng' },
+                { session }
+            );
         }
 
         await session.commitTransaction();

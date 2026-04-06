@@ -1,6 +1,8 @@
 const Shipment = require('../../models/orders/Shipment');
 const Order = require('../../models/orders/Order');
+const ReturnOrder = require('../../models/orders/ReturnOrder');
 const { createNotification } = require('../common/notificationController');
+const { sendShipmentCreatedEmail } = require('../../services/mailService');
 
 // ─── 1. TẠO VẬN ĐƠN CHO ĐƠN HÀNG ────────────────────────────────────────────
 exports.createShipment = async (req, res) => {
@@ -8,10 +10,11 @@ exports.createShipment = async (req, res) => {
         const { order_id, carrier, tracking_code, shipping_fee, shipping_address, estimated_date, note } = req.body;
         if (!order_id) return res.status(400).json({ success: false, message: 'Thiếu order_id' });
 
-        const order = await Order.findById(order_id).populate('customer_id');
+        const order = await Order.findById(order_id)
+            .populate('customer_id', 'full_name')
+            .populate('user_id', 'email username');
         if (!order) return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
 
-        // Kiểm tra đơn hàng đã có vận đơn chưa
         const existing = await Shipment.findOne({ order_id });
         if (existing) return res.status(400).json({ success: false, message: 'Đơn hàng này đã có vận đơn' });
 
@@ -20,15 +23,37 @@ exports.createShipment = async (req, res) => {
             shipping_fee, shipping_address, estimated_date, note
         });
 
-        // Gửi thông báo cho khách hàng
+        // Cập nhật trạng thái đơn hàng → Đang vận chuyển
+        await Order.findByIdAndUpdate(order_id, { status: 'Shipping' });
+
+        // Gửi thông báo in-app
         if (order.user_id) {
             await createNotification({
-                user_id: order.user_id,
+                user_id: order.user_id._id || order.user_id,
                 title: 'Đơn hàng đang được giao',
                 message: `Đơn hàng của bạn đã được bàn giao cho ${carrier || 'đơn vị vận chuyển'}. Mã vận đơn: ${tracking_code || 'Đang cập nhật'}`,
                 type: 'order',
                 link: `/orders/${order_id}`
             });
+        }
+
+        // Gửi email thông báo kèm phí ship
+        try {
+            const email = order.user_id?.email;
+            const fullName = order.customer_id?.full_name || order.user_id?.username || 'Khách hàng';
+            if (email) {
+                sendShipmentCreatedEmail({
+                    to: email,
+                    full_name: fullName,
+                    order_id,
+                    carrier,
+                    tracking_code,
+                    shipping_fee: shipping_fee || 0,
+                    estimated_date
+                }).catch(e => console.error('[MAIL] Shipment email lỗi:', e.message));
+            }
+        } catch (mailErr) {
+            console.error('[MAIL] Shipment email error:', mailErr.message);
         }
 
         res.status(201).json({ success: true, data: shipment });
@@ -67,31 +92,59 @@ exports.updateShipmentStatus = async (req, res) => {
         if (tracking_code) shipment.tracking_code = tracking_code;
         if (note) shipment.note = note;
         if (status === 'Delivered') shipment.delivered_at = new Date();
-
         await shipment.save();
 
-        // Cập nhật trạng thái đơn hàng nếu đã giao thành công
+        const orderId = shipment.order_id._id || shipment.order_id;
+
+        // ── Đồng bộ trạng thái đơn hàng theo vận đơn ────────────────────────
         if (status === 'Delivered') {
-            await Order.findByIdAndUpdate(shipment.order_id._id, { status: 'Completed' });
+            // Giao thành công → đơn hàng Completed
+            await Order.findByIdAndUpdate(orderId, { status: 'Completed' });
+
+        } else if (status === 'Returned') {
+            // Vận đơn trả về → đơn hàng Returned
+            await Order.findByIdAndUpdate(orderId, { status: 'Returned' });
+
+            // Tự động tạo ReturnOrder nếu chưa có
+            const existingReturn = await ReturnOrder.findOne({ order_id: orderId });
+            if (!existingReturn) {
+                const order = await Order.findById(orderId).populate('customer_id');
+                const returnItems = order.details.map(d => ({
+                    variant_id: d.variant_id,
+                    quantity: d.quantity,
+                    reason: 'Vận chuyển hoàn trả'
+                }));
+                await ReturnOrder.create({
+                    order_id: orderId,
+                    customer_id: order.customer_id?._id || order.customer_id,
+                    items: returnItems,
+                    note: note || 'Tự động tạo khi vận đơn hoàn trả',
+                    status: 'Pending'
+                });
+            }
+
+        } else if (status === 'In Transit' || status === 'Picking') {
+            // Đảm bảo đơn hàng ở trạng thái Shipping
+            await Order.findByIdAndUpdate(orderId, { status: 'Shipping' });
         }
 
-        // Gửi thông báo cho user
-        const order = await Order.findById(shipment.order_id);
+        // Gửi thông báo in-app
+        const order = await Order.findById(orderId);
         if (order?.user_id) {
             const msgMap = {
-                'Picking': 'Đơn hàng đang được lấy hàng.',
+                'Picking':    'Đơn hàng đang được lấy hàng.',
                 'In Transit': 'Đơn hàng đang trên đường vận chuyển đến bạn.',
-                'Delivered': '🎉 Đơn hàng đã được giao thành công!',
-                'Failed': 'Giao hàng thất bại. Vui lòng liên hệ cửa hàng.',
-                'Returned': 'Đơn hàng đã được hoàn trả.'
+                'Delivered':  '🎉 Đơn hàng đã được giao thành công!',
+                'Failed':     'Giao hàng thất bại. Vui lòng liên hệ cửa hàng.',
+                'Returned':   'Đơn hàng đã được hoàn trả về cửa hàng.'
             };
             if (msgMap[status]) {
                 await createNotification({
                     user_id: order.user_id,
-                    title: `Cập nhật đơn hàng`,
+                    title: 'Cập nhật đơn hàng',
                     message: msgMap[status],
                     type: 'order',
-                    link: `/orders/${order._id}`
+                    link: `/orders/${orderId}`
                 });
             }
         }
@@ -102,7 +155,7 @@ exports.updateShipmentStatus = async (req, res) => {
     }
 };
 
-// ─── 4. DANH SÁCH VẬN ĐƠN (Admin/Staff) ──────────────────────────────────────
+// ─── 4. DANH SÁCH VẬN ĐƠN ────────────────────────────────────────────────────
 exports.getAllShipments = async (req, res) => {
     try {
         const { status, carrier, page = 1, limit = 20 } = req.query;

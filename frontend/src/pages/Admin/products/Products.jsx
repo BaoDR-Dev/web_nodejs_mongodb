@@ -1,87 +1,156 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { productAPI, categoryAPI, brandAPI, attributeAPI, locationAPI, stockAPI } from '../../../api/services';
-import { Table, Badge, Modal, Confirm, Field, Input, Select, Textarea, SearchBar, Pagination, fmtVND, fmtDate, statusColor, PageLoader, Empty } from '../../../components/Common/UI';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { productAPI, categoryAPI, brandAPI, attributeAPI } from '../../../api/services';
+import { Table, Badge, Modal, Confirm, Field, Input, Select, Textarea, SearchBar, Pagination, fmtVND } from '../../../components/Common/UI';
 import { toast } from '../../../components/Common/Toast';
 
+// ── Component chọn & preview ảnh từ thiết bị ─────────────────────────────────
+function ImagePicker({ value, onChange }) {
+  const inputRef = useRef();
+  const [preview, setPreview] = useState(value || '');
+
+  useEffect(() => { setPreview(value || ''); }, [value]);
+
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    onChange(file); // trả về File object
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <button type="button"
+        onClick={() => inputRef.current.click()}
+        className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 whitespace-nowrap">
+        Chọn ảnh
+      </button>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      {preview && (
+        <img src={preview} alt="preview"
+          className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+          onError={e => e.target.style.display = 'none'} />
+      )}
+      {!preview && <span className="text-sm text-gray-400">Chưa chọn ảnh</span>}
+    </div>
+  );
+}
+
 export default function AdminProducts() {
-  const [products, setProducts]   = useState([]);
-  const [total, setTotal]         = useState(0);
-  const [page, setPage]           = useState(1);
-  const [loading, setLoading]     = useState(true);
-  const [search, setSearch]       = useState('');
+  const [products, setProducts]     = useState([]);
+  const [total, setTotal]           = useState(0);
+  const [page, setPage]             = useState(1);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [categories, setCategories] = useState([]);
-  const [brands, setBrands]       = useState([]);
-  const [colors, setColors]       = useState([]);
-  const [sizes, setSizes]         = useState([]);
+  const [brands, setBrands]         = useState([]);
+  const [colors, setColors]         = useState([]);
+  const [sizes, setSizes]           = useState([]);
 
-  const [showModal, setShowModal] = useState(false);
-  const [showVariantModal, setShowVariantModal] = useState(false);
+  // Create product
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: '', sku: '', description: '', category_id: '', brand_id: '' });
+  const [creating, setCreating]     = useState(false);
+
+  // Edit product
+  const [showEditProductModal, setShowEditProductModal] = useState(false);
+  const [editingProduct, setEditingProduct]             = useState(null);
+  const [editProductForm, setEditProductForm]           = useState({ name: '', description: '', category_id: '', brand_id: '' });
+  const [savingProduct, setSavingProduct]               = useState(false);
+
+  // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [selected, setSelected]   = useState(null);
-  const [deleting, setDeleting]   = useState(false);
+  const [selected, setSelected]     = useState(null);
+  const [deleting, setDeleting]     = useState(false);
 
-  const [form, setForm] = useState({ name: '', sku: '', description: '', category_id: '', brand_id: '' });
-  const [variantForm, setVariantForm] = useState({ 
-    sku: '', price: '', stock_quantity: 0, color_id: '', size_id: '', 
-    image_url: '' // Thêm trường này để lưu link ảnh tạm thời
-  });
-
+  // Detail
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showStockModal, setShowStockModal] = useState(false);
-  const [locations, setLocations] = useState([]);
-  const [productDetail, setProductDetail] = useState(null); 
-  const [stockForm, setStockForm] = useState({ 
-    variant_id: '', 
-    location_id: '', 
-    quantity_change: '', 
-    reason: 'Nhập kho bổ sung' 
-  });
+  const [productDetail, setProductDetail]     = useState(null);
 
-  const fetch = useCallback(async () => {
+  // Add variant
+  const [showAddVariantModal, setShowAddVariantModal] = useState(false);
+  const [addVariantForm, setAddVariantForm] = useState({ sku: '', price: '', color_id: '', size_id: '' });
+  const [addVariantImageFile, setAddVariantImageFile] = useState(null);
+  const [addingVariant, setAddingVariant]   = useState(false);
+
+  // Edit variant
+  const [showEditVariantModal, setShowEditVariantModal] = useState(false);
+  const [editingVariant, setEditingVariant]             = useState(null);
+  const [editVariantForm, setEditVariantForm]           = useState({ sku: '', price: '', color_id: '', size_id: '' });
+  const [editVariantImageFile, setEditVariantImageFile] = useState(null);
+  const [editVariantPreview, setEditVariantPreview]     = useState('');
+  const [savingVariant, setSavingVariant]               = useState(false);
+
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await productAPI.getAll({ page, limit: 20, name: search || undefined, category_id: categoryId || undefined });
+      const { data } = await productAPI.getAll({ page, limit: 20, name: search || undefined, category_id: categoryId || undefined, show_hidden: true });
       setProducts(data.data || []);
       setTotal(data.total || 0);
     } catch { toast.error('Không thể tải sản phẩm'); }
     finally { setLoading(false); }
   }, [page, search, categoryId]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   useEffect(() => {
-    Promise.all([categoryAPI.getAll(), brandAPI.getAll(), attributeAPI.get('color'), attributeAPI.get('size')])
+    Promise.all([
+      categoryAPI.getAll({ limit: 1000 }),
+      brandAPI.getAll({ limit: 1000 }),
+      attributeAPI.get('color'),
+      attributeAPI.get('size')
+    ])
       .then(([c, b, col, sz]) => {
         setCategories(c.data.data || []);
-        setBrands(b.data.data || []);
+        // brand controller trả { data: [...] } không có wrapper data.data
+        setBrands(b.data.data || b.data || []);
         setColors(col.data.data || []);
         setSizes(sz.data.data || []);
       }).catch(() => {});
-      
-    // Load danh sách Kệ hàng (Locations)
-    locationAPI.getAll().then(res => setLocations(res.data.data || [])).catch(() => {});
   }, []);
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    try {
-      await productAPI.create(form);
-      toast.success('Đã tạo sản phẩm!');
-      setShowModal(false);
-      setForm({ name: '', sku: '', description: '', category_id: '', brand_id: '' });
-      fetch();
-    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi'); }
+  const refreshDetail = async () => {
+    const { data } = await productAPI.getById(productDetail._id);
+    setProductDetail(data.data);
   };
 
+  // ── Tạo sản phẩm ──────────────────────────────────────────────────────────
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      await productAPI.create({
+        product: {
+          name:        createForm.name,
+          sku:         createForm.sku,
+          description: createForm.description,
+          category_id: createForm.category_id || undefined,
+          brand_id:    createForm.brand_id    || undefined,
+        },
+        variants: []
+      });
+      toast.success('Đã tạo sản phẩm!');
+      setShowCreateModal(false);
+      setCreateForm({ name: '', sku: '', description: '', category_id: '', brand_id: '' });
+      fetchProducts();
+    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi tạo sản phẩm'); }
+    finally { setCreating(false); }
+  };
+
+  // ── Toggle sản phẩm ───────────────────────────────────────────────────────
   const handleToggle = async (id) => {
     try {
       await productAPI.toggleStatus(id);
       toast.success('Đã cập nhật trạng thái');
-      fetch();
+      fetchProducts();
     } catch { toast.error('Lỗi cập nhật'); }
   };
 
+  // ── Toggle variant ────────────────────────────────────────────────────────
+  // Đã bỏ — variant không có is_active nữa
+
+  // ── Xóa sản phẩm ──────────────────────────────────────────────────────────
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -89,63 +158,118 @@ export default function AdminProducts() {
       toast.success('Đã xóa sản phẩm');
       setShowDeleteConfirm(false);
       setSelected(null);
-      fetch();
+      fetchProducts();
     } catch (err) { toast.error(err.response?.data?.message || 'Không thể xóa'); }
     finally { setDeleting(false); }
   };
 
-  const handleAddVariant = async (e) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        sku: variantForm.sku,
-        price: variantForm.price,
-        color_id: variantForm.color_id,
-        size_id: variantForm.size_id,
-        images: variantForm.image_url ? [{ image_url: variantForm.image_url, is_primary: true }] : []
-      };
-
-      await productAPI.addVariant(selected._id, payload);
-      
-      toast.success('Đã thêm biến thể kèm ảnh!');
-      setShowVariantModal(false);
-      setVariantForm({ sku: '', price: '', stock_quantity: 0, color_id: '', size_id: '', image_url: '' });
-      fetch(); 
-    } catch (err) { 
-      toast.error(err.response?.data?.message || 'Lỗi'); 
-    }
-  };
-
+  // ── Mở chi tiết ───────────────────────────────────────────────────────────
   const openDetail = async (product) => {
     try {
       const { data } = await productAPI.getById(product._id);
-      setProductDetail(data.data); 
+      setProductDetail(data.data);
       setShowDetailModal(true);
-    } catch (err) { toast.error('Không tải được chi tiết sản phẩm'); }
+    } catch { toast.error('Không tải được chi tiết sản phẩm'); }
   };
 
-  const handleAddStock = async (e) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        variant_id: stockForm.variant_id,
-        location_id: stockForm.location_id,
-        movement_type: 'IN', 
-        quantity_change: Number(stockForm.quantity_change),
-        reason: stockForm.reason
-      };
+  // ── Mở sửa sản phẩm ───────────────────────────────────────────────────────
+  const openEditProduct = (product) => {
+    setEditingProduct(product);
+    setEditProductForm({
+      name:        product.name || '',
+      description: product.description || '',
+      category_id: product.category_id?._id || product.category_id || '',
+      brand_id:    product.brand_id?._id    || product.brand_id    || '',
+    });
+    setShowEditProductModal(true);
+  };
 
-      await stockAPI.recordMovement(payload);
-      toast.success('Đã nhập kho và tăng số lượng thành công!');
-      
-      setShowStockModal(false);
-      setStockForm({ variant_id: '', location_id: '', quantity_change: '', reason: 'Nhập kho bổ sung' });
-      
-      openDetail(productDetail); 
-      fetch(); 
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Lỗi nhập kho');
-    }
+  const handleSaveProduct = async (e) => {
+    e.preventDefault();
+    setSavingProduct(true);
+    try {
+      await productAPI.update(editingProduct._id, editProductForm);
+      toast.success('Đã cập nhật sản phẩm!');
+      setShowEditProductModal(false);
+      fetchProducts();
+    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi cập nhật sản phẩm'); }
+    finally { setSavingProduct(false); }
+  };
+
+  // ── Thêm variant ──────────────────────────────────────────────────────────
+  const handleAddVariant = async (e) => {
+    e.preventDefault();
+    setAddingVariant(true);
+    try {
+      // 1. Tạo variant trước
+      const { data: varRes } = await productAPI.addVariant(productDetail._id, {
+        sku:      addVariantForm.sku,
+        price:    addVariantForm.price,
+        color_id: addVariantForm.color_id || undefined,
+        size_id:  addVariantForm.size_id  || undefined,
+      });
+      const newVariantId = varRes.data._id;
+
+      // 2. Upload ảnh nếu có chọn file
+      if (addVariantImageFile) {
+        const fd = new FormData();
+        fd.append('image', addVariantImageFile);
+        fd.append('is_primary', 'true');
+        await productAPI.uploadImage(newVariantId, fd);
+      }
+
+      toast.success('Đã thêm biến thể!');
+      setShowAddVariantModal(false);
+      setAddVariantForm({ sku: '', price: '', color_id: '', size_id: '' });
+      setAddVariantImageFile(null);
+      await refreshDetail();
+    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi thêm biến thể'); }
+    finally { setAddingVariant(false); }
+  };
+
+  // ── Mở sửa variant ────────────────────────────────────────────────────────
+  const openEditVariant = (variant) => {
+    setEditingVariant(variant);
+    setEditVariantForm({
+      sku:      variant.sku || '',
+      price:    variant.price || '',
+      color_id: variant.color_id?._id || variant.color_id || '',
+      size_id:  variant.size_id?._id  || variant.size_id  || '',
+    });
+    setEditVariantImageFile(null);
+    setEditVariantPreview(variant.images?.[0]?.image_url || '');
+    setShowEditVariantModal(true);
+  };
+
+  // ── Lưu sửa variant ───────────────────────────────────────────────────────
+  const handleSaveVariant = async (e) => {
+    e.preventDefault();
+    setSavingVariant(true);
+    try {
+      await productAPI.updateVariant(editingVariant._id, {
+        sku:      editVariantForm.sku,
+        price:    editVariantForm.price,
+        color_id: editVariantForm.color_id || undefined,
+        size_id:  editVariantForm.size_id  || undefined,
+      });
+
+      // Upload ảnh mới nếu user chọn file — xóa ảnh cũ trước
+      if (editVariantImageFile) {
+        const oldImg = editingVariant.images?.[0];
+        if (oldImg?._id) {
+          await productAPI.deleteImage(oldImg._id).catch(() => {});
+        }
+        const fd = new FormData();
+        fd.append('image', editVariantImageFile);
+        fd.append('is_primary', 'true');
+        await productAPI.uploadImage(editingVariant._id, fd);
+      }
+
+      toast.success('Đã cập nhật biến thể!');
+      setShowEditVariantModal(false);
+      await refreshDetail();
+    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi cập nhật biến thể'); }
+    finally { setSavingVariant(false); }
   };
 
   const columns = [
@@ -155,21 +279,24 @@ export default function AdminProducts() {
         <p className="text-xs text-gray-400 font-mono">{r.sku}</p>
       </div>
     )},
-    { header: 'Danh mục', render: r => r.category_id?.name || '—' },
-{ header: 'Thương hiệu', render: r => r.brand_id?.name || '—' },    { header: 'Biến thể', render: r => <span className="font-mono text-sm">{r.variants?.length || 0}</span> },
-    { header: 'Trạng thái', render: r => (
-      <Badge color={r.is_active !== false ? 'green' : 'red'}>{r.is_active !== false ? 'Đang bán' : 'Ngừng bán'}</Badge>
+    { header: 'Danh mục',    render: r => r.category_id?.name || '—' },
+    { header: 'Thương hiệu', render: r => r.brand_id?.name || '—' },
+    { header: 'Biến thể',    render: r => <span className="font-mono text-sm">{r.variants?.length || 0}</span> },
+    { header: 'Trạng thái',  render: r => (
+      <Badge color={r.is_active !== false ? 'green' : 'red'}>
+        {r.is_active !== false ? 'Đang bán' : 'Ngừng bán'}
+      </Badge>
     )},
     { header: 'Thao tác', render: r => (
       <div className="flex items-center gap-2">
         <button onClick={() => openDetail(r)}
           className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100">Chi tiết</button>
-      
-        <button onClick={() => { setSelected(r); setShowVariantModal(true); }}
-          className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100">+ Biến thể</button>
-        
+        <button onClick={() => openEditProduct(r)}
+          className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded hover:bg-amber-100">Sửa</button>
         <button onClick={() => handleToggle(r._id)}
-          className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded hover:bg-amber-100">
+          className={`text-xs px-2 py-1 rounded ${r.is_active !== false
+            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
           {r.is_active !== false ? 'Ẩn' : 'Hiện'}
         </button>
         <button onClick={() => { setSelected(r); setShowDeleteConfirm(true); }}
@@ -182,13 +309,14 @@ export default function AdminProducts() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-900">Sản phẩm</h2>
-        <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+        <button onClick={() => setShowCreateModal(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           + Thêm sản phẩm
         </button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4 flex flex-wrap gap-3">
-        <SearchBar value={search} onChange={setSearch} onSearch={fetch} placeholder="Tìm tên, SKU..." />
+        <SearchBar value={search} onChange={setSearch} onSearch={fetchProducts} placeholder="Tìm tên, SKU..." />
         <select value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(1); }}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           <option value="">Tất cả danh mục</option>
@@ -204,106 +332,67 @@ export default function AdminProducts() {
       </div>
 
       {/* Create Product Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Thêm sản phẩm mới">
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Thêm sản phẩm mới">
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Tên sản phẩm" required>
-              <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} required placeholder="Tên sản phẩm" />
+              <Input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} required placeholder="Áo thun basic" />
             </Field>
             <Field label="SKU" required>
-              <Input value={form.sku} onChange={e => setForm({...form, sku: e.target.value})} required placeholder="SKU-001" />
+              <Input value={createForm.sku} onChange={e => setCreateForm({ ...createForm, sku: e.target.value })} required placeholder="AT-001" />
             </Field>
             <Field label="Danh mục">
-              <Select value={form.category_id} onChange={e => setForm({...form, category_id: e.target.value})}>
+              <Select value={createForm.category_id} onChange={e => setCreateForm({ ...createForm, category_id: e.target.value })}>
                 <option value="">Chọn danh mục</option>
                 {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
               </Select>
             </Field>
             <Field label="Thương hiệu">
-              <Select value={form.brand_id} onChange={e => setForm({...form, brand_id: e.target.value})}>
+              <Select value={createForm.brand_id} onChange={e => setCreateForm({ ...createForm, brand_id: e.target.value })}>
                 <option value="">Chọn thương hiệu</option>
                 {brands.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
               </Select>
             </Field>
           </div>
           <Field label="Mô tả">
-            <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Mô tả sản phẩm..." />
+            <Textarea value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} placeholder="Mô tả sản phẩm..." />
           </Field>
+          <p className="text-xs text-gray-400 italic">* Sau khi tạo, vào Chi tiết để thêm biến thể.</p>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Hủy</button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Tạo sản phẩm</button>
+            <button type="button" onClick={() => setShowCreateModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Hủy</button>
+            <button type="submit" disabled={creating}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60">
+              {creating ? 'Đang tạo...' : 'Tạo sản phẩm'}
+            </button>
           </div>
         </form>
       </Modal>
 
-      {/* Add Variant Modal */}
-      <Modal open={showVariantModal} onClose={() => setShowVariantModal(false)} title={`Thêm biến thể — ${selected?.name}`}>
-        <form onSubmit={handleAddVariant} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="SKU biến thể" required>
-              <Input value={variantForm.sku} onChange={e => setVariantForm({...variantForm, sku: e.target.value})} required placeholder="SKU-001-RED-M" />
-            </Field>
-            <Field label="Giá bán" required>
-              <Input type="number" value={variantForm.price} onChange={e => setVariantForm({...variantForm, price: e.target.value})} required placeholder="150000" min={0} />
-            </Field>
-            <Field label="Màu sắc">
-              <Select value={variantForm.color_id} onChange={e => setVariantForm({...variantForm, color_id: e.target.value})}>
-                <option value="">Chọn màu</option>
-                {colors.map(c => <option key={c._id} value={c._id}>{c.color_name}</option>)}
-              </Select>
-            </Field>
-            <Field label="Size">
-              <Select value={variantForm.size_id} onChange={e => setVariantForm({...variantForm, size_id: e.target.value})}>
-                <option value="">Chọn size</option>
-                {sizes.map(s => <option key={s._id} value={s._id}>{s.size_name}</option>)}
-              </Select>
-            </Field>
-          </div>
-
-          <Field label="Link ảnh biến thể (URL)">
-            <div className="flex gap-3 items-center">
-              <Input 
-                value={variantForm.image_url} 
-                onChange={e => setVariantForm({...variantForm, image_url: e.target.value})} 
-                placeholder="https://ví-dụ.com/anh-ao-thun.jpg" 
-              />
-              {variantForm.image_url && (
-                <img 
-                  src={variantForm.image_url} 
-                  alt="Preview" 
-                  className="w-10 h-10 object-cover rounded border border-gray-200"
-                  onError={(e) => e.target.src = 'https://via.placeholder.com/40?text=Lỗi'} 
-                />
-              )}
-            </div>
-          </Field>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowVariantModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm">Hủy</button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Thêm biến thể</button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Delete Confirm Modal */}
+      {/* Delete Confirm */}
       <Confirm open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={handleDelete}
-        loading={deleting} title="Xóa sản phẩm" message={`Bạn có chắc muốn xóa "${selected?.name}"? Hành động này không thể hoàn tác.`} />
+        loading={deleting} title="Xóa sản phẩm"
+        message={`Bạn có chắc muốn xóa "${selected?.name}"? Hành động này không thể hoàn tác.`} />
 
-      {/* View Detail & Variants Modal */}
-      <Modal open={showDetailModal} onClose={() => setShowDetailModal(false)} title={`Chi tiết: ${productDetail?.name}`} size="lg">
+      {/* Product Detail Modal */}
+      <Modal open={showDetailModal} onClose={() => setShowDetailModal(false)}
+        title={`Chi tiết: ${productDetail?.name}`} size="lg">
         {productDetail && (
           <div className="space-y-4">
-            <div className="flex gap-4 mb-4">
-              <div className="bg-gray-50 p-3 rounded-lg flex-1">
+            <div className="bg-gray-50 p-3 rounded-lg flex items-center justify-between">
+              <div>
                 <p className="text-sm text-gray-500">Mã SKU: <span className="font-mono text-gray-800 font-bold">{productDetail.sku}</span></p>
-                <p className="text-sm text-gray-500">Danh mục: <span className="font-bold">{productDetail.category_id?.name}</span></p>
-               <p className="text-sm text-gray-500">Thương hiệu: <span className="font-bold">{productDetail.brand_id?.name}</span></p>
-
+                <p className="text-sm text-gray-500">Danh mục: <span className="font-bold">{productDetail.category_id?.name || '—'}</span></p>
+                <p className="text-sm text-gray-500">Thương hiệu: <span className="font-bold">{productDetail.brand_id?.name || '—'}</span></p>
               </div>
+              <button onClick={() => setShowAddVariantModal(true)}
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                + Thêm biến thể
+              </button>
             </div>
 
-            <h3 className="font-bold text-gray-800">Danh sách Biến thể ({productDetail.variants?.length})</h3>
-            
+            <h3 className="font-bold text-gray-800">Danh sách Biến thể ({productDetail.variants?.length || 0})</h3>
+
             <div className="border rounded-xl overflow-hidden">
               <table className="w-full text-sm text-left">
                 <thead className="bg-gray-100">
@@ -311,7 +400,7 @@ export default function AdminProducts() {
                     <th className="px-4 py-2 font-semibold">SKU Biến thể</th>
                     <th className="px-4 py-2 font-semibold text-center">Màu / Size</th>
                     <th className="px-4 py-2 font-semibold text-right">Giá bán</th>
-                    <th className="px-4 py-2 font-semibold text-center text-blue-600">Tồn kho</th>
+                    <th className="px-4 py-2 font-semibold text-center">Tồn kho</th>
                     <th className="px-4 py-2 font-semibold text-center">Thao tác</th>
                   </tr>
                 </thead>
@@ -320,9 +409,10 @@ export default function AdminProducts() {
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-4 py-2 font-mono text-xs">
                         <div className="flex items-center gap-2">
-                          {v.images?.[0]?.image_url && (
-                             <img src={v.images[0].image_url} alt="img" className="w-8 h-8 rounded object-cover border" />
-                          )}
+                          {v.images?.[0]?.image_url
+                            ? <img src={v.images[0].image_url} alt="img" className="w-8 h-8 rounded object-cover border" />
+                            : <div className="w-8 h-8 rounded border bg-gray-100 flex items-center justify-center text-gray-300 text-xs">?</div>
+                          }
                           <span>{v.sku}</span>
                         </div>
                       </td>
@@ -336,13 +426,8 @@ export default function AdminProducts() {
                         </span>
                       </td>
                       <td className="px-4 py-2 text-center">
-                        <button onClick={() => { 
-                            setStockForm({ ...stockForm, variant_id: v._id }); 
-                            setShowStockModal(true); 
-                          }}
-                          className="text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600">
-                          + Nhập hàng
-                        </button>
+                        <button onClick={() => openEditVariant(v)}
+                          className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100">Sửa</button>
                       </td>
                     </tr>
                   ))}
@@ -356,36 +441,135 @@ export default function AdminProducts() {
         )}
       </Modal>
 
-      {/* Quick Add Stock Modal */}
-      <Modal open={showStockModal} onClose={() => setShowStockModal(false)} title="Nhập hàng / Tăng số lượng" size="sm">
-        <form onSubmit={handleAddStock} className="space-y-4">
-          <Field label="Cất vào Kệ hàng nào?" required>
-            <Select value={stockForm.location_id} onChange={e => setStockForm({...stockForm, location_id: e.target.value})} required>
-              <option value="">-- Chọn Kệ hàng (Location) --</option>
-              {locations.map(loc => (
-                <option key={loc._id} value={loc._id}>
-                  {loc.location_name} (Thuộc: {loc.warehouse_id?.warehouse_name})
-                </option>
-              ))}
-            </Select>
-            <p className="text-xs text-amber-600 mt-1">*Hàng hóa bắt buộc phải được xếp lên kệ</p>
+      {/* Add Variant Modal */}
+      <Modal open={showAddVariantModal} onClose={() => setShowAddVariantModal(false)}
+        title={`Thêm biến thể — ${productDetail?.name}`} size="sm">
+        <form onSubmit={handleAddVariant} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="SKU biến thể" required>
+              <Input value={addVariantForm.sku}
+                onChange={e => setAddVariantForm({ ...addVariantForm, sku: e.target.value })}
+                required placeholder="AT-001-RED-M" />
+            </Field>
+            <Field label="Giá bán" required>
+              <Input type="number" value={addVariantForm.price}
+                onChange={e => setAddVariantForm({ ...addVariantForm, price: e.target.value })}
+                required placeholder="150000" min={0} />
+            </Field>
+            <Field label="Màu sắc">
+              <Select value={addVariantForm.color_id}
+                onChange={e => setAddVariantForm({ ...addVariantForm, color_id: e.target.value })}>
+                <option value="">Chọn màu</option>
+                {colors.map(c => <option key={c._id} value={c._id}>{c.color_name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Size">
+              <Select value={addVariantForm.size_id}
+                onChange={e => setAddVariantForm({ ...addVariantForm, size_id: e.target.value })}>
+                <option value="">Chọn size</option>
+                {sizes.map(s => <option key={s._id} value={s._id}>{s.size_name}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Ảnh biến thể">
+            <ImagePicker value="" onChange={setAddVariantImageFile} />
           </Field>
-
-          <Field label="Số lượng cất thêm" required>
-            <Input type="number" value={stockForm.quantity_change} onChange={e => setStockForm({...stockForm, quantity_change: e.target.value})} required min={1} placeholder="VD: 50" />
-          </Field>
-
-          <Field label="Lý do / Nguồn hàng">
-            <Input value={stockForm.reason} onChange={e => setStockForm({...stockForm, reason: e.target.value})} placeholder="VD: Nhập hàng từ NCC A" />
-          </Field>
-
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowStockModal(false)} className="px-4 py-2 border rounded-lg text-sm">Hủy</button>
-            <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">Xác nhận Nhập</button>
+            <button type="button" onClick={() => setShowAddVariantModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Hủy</button>
+            <button type="submit" disabled={addingVariant}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60">
+              {addingVariant ? 'Đang lưu...' : 'Thêm biến thể'}
+            </button>
           </div>
         </form>
       </Modal>
 
+      {/* Edit Product Modal */}
+      <Modal open={showEditProductModal} onClose={() => setShowEditProductModal(false)} title="Sửa thông tin sản phẩm">
+        <form onSubmit={handleSaveProduct} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Tên sản phẩm" required>
+              <Input value={editProductForm.name}
+                onChange={e => setEditProductForm({ ...editProductForm, name: e.target.value })}
+                required placeholder="Áo thun basic" />
+            </Field>
+            <Field label="Danh mục">
+              <Select value={editProductForm.category_id}
+                onChange={e => setEditProductForm({ ...editProductForm, category_id: e.target.value })}>
+                <option value="">Chọn danh mục</option>
+                {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Thương hiệu">
+              <Select value={editProductForm.brand_id}
+                onChange={e => setEditProductForm({ ...editProductForm, brand_id: e.target.value })}>
+                <option value="">Chọn thương hiệu</option>
+                {brands.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Mô tả">
+            <Textarea value={editProductForm.description}
+              onChange={e => setEditProductForm({ ...editProductForm, description: e.target.value })}
+              placeholder="Mô tả sản phẩm..." />
+          </Field>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setShowEditProductModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Hủy</button>
+            <button type="submit" disabled={savingProduct}
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm hover:bg-amber-600 disabled:opacity-60">
+              {savingProduct ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Variant Modal */}
+      <Modal open={showEditVariantModal} onClose={() => setShowEditVariantModal(false)}
+        title="Sửa thông tin biến thể" size="sm">
+        <form onSubmit={handleSaveVariant} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="SKU biến thể" required>
+              <Input value={editVariantForm.sku}
+                onChange={e => setEditVariantForm({ ...editVariantForm, sku: e.target.value })}
+                required placeholder="AT-001-RED-M" />
+            </Field>
+            <Field label="Giá bán" required>
+              <Input type="number" value={editVariantForm.price}
+                onChange={e => setEditVariantForm({ ...editVariantForm, price: e.target.value })}
+                required placeholder="150000" min={0} />
+            </Field>
+            <Field label="Màu sắc">
+              <Select value={editVariantForm.color_id}
+                onChange={e => setEditVariantForm({ ...editVariantForm, color_id: e.target.value })}>
+                <option value="">Chọn màu</option>
+                {colors.map(c => <option key={c._id} value={c._id}>{c.color_name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Size">
+              <Select value={editVariantForm.size_id}
+                onChange={e => setEditVariantForm({ ...editVariantForm, size_id: e.target.value })}>
+                <option value="">Chọn size</option>
+                {sizes.map(s => <option key={s._id} value={s._id}>{s.size_name}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Ảnh biến thể">
+            <ImagePicker value={editVariantPreview} onChange={setEditVariantImageFile} />
+            <p className="text-xs text-gray-400 mt-1">Chọn ảnh mới để thay thế ảnh hiện tại.</p>
+          </Field>
+          <p className="text-xs text-gray-400 italic">* Số lượng tồn kho được quản lý qua phiếu nhập kho.</p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setShowEditVariantModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Hủy</button>
+            <button type="submit" disabled={savingVariant}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60">
+              {savingVariant ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

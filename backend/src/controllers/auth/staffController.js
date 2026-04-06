@@ -118,6 +118,25 @@ exports.deleteStaff = async (req, res) => {
     }
 };
 
+// 4b. NGHỈ VIỆC — đánh dấu nghỉ việc + khóa tài khoản (không xóa dữ liệu)
+exports.resignStaff = async (req, res) => {
+    try {
+        const staff = await Staff.findById(req.params.id);
+        if (!staff) return res.status(404).json({ success: false, message: "Không tìm thấy nhân viên" });
+
+        staff.status = 'Đã nghỉ việc';
+        await staff.save();
+
+        if (staff.user_id) {
+            await User.findByIdAndUpdate(staff.user_id, { status: 'Banned' });
+        }
+
+        res.status(200).json({ success: true, message: "Nhân viên đã nghỉ việc và tài khoản đã bị khóa" });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+};
+
 // 5. LẤY CHI TIẾT 1 NHÂN VIÊN (Bổ sung để không bị lỗi Route)
 exports.getStaffById = async (req, res) => {
     try {

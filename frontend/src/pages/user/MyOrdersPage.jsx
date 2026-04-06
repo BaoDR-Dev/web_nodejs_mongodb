@@ -136,7 +136,7 @@ export function MyOrdersPage() {
     }
   };
 
-  // ── Hủy đơn (chỉ cho phép khi Draft) ────────────────────────────────────
+  // ── Hủy đơn (chỉ cho phép khi Draft và chưa có vận chuyển) ────────────────
   const handleCancel = async () => {
     if (selected?.status !== 'Draft') {
       toast.error('Chỉ có thể hủy đơn hàng đang chờ xử lý.');
@@ -145,7 +145,7 @@ export function MyOrdersPage() {
     if (!window.confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
     setCancelLoading(true);
     try {
-      await orderAPI.updateStatus(selected._id, { status: 'Cancelled' });
+      await orderAPI.cancel(selected._id);
       toast.success('Đã hủy đơn hàng!');
       setShowDetail(false);
       fetchOrders(tab);

@@ -26,9 +26,11 @@ export const productAPI = {
   update:          (id, d)  => api.put(`/products/${id}`, d),
   delete:          (id)     => api.delete(`/products/${id}`),
   toggleStatus:    (id)     => api.patch(`/products/${id}/status`),
+  toggleVariantStatus: (vid) => api.patch(`/products/variant/${vid}/status`),
   addVariant:      (pid, d) => api.post(`/products/${pid}/variants`, d),
   updateVariant:   (vid, d) => api.put(`/products/variant/${vid}`, d),
   addImage:        (vid, d) => api.post(`/products/variants/${vid}/images`, d),
+  uploadImage:     (vid, formData) => api.post(`/products/variants/${vid}/images/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   setPrimaryImage: (iid)    => api.patch(`/products/images/${iid}/set-primary`),
   deleteImage:     (iid)    => api.delete(`/products/images/${iid}`),
 };
@@ -74,6 +76,7 @@ export const orderAPI = {
   create:        (data)     => api.post('/orders', data),
   myOrders:      (params)   => api.get('/orders/my-orders', { params }),
   getById:       (id)       => api.get(`/orders/${id}`),
+  cancel:        (id)       => api.patch(`/orders/${id}/cancel`),
   getAll:        (params)   => api.get('/orders', { params }),
   updateStatus:  (id, data) => api.patch(`/orders/${id}/status`, data),
   addPayment:    (id, data) => api.post(`/orders/${id}/payment`, data),
@@ -84,6 +87,7 @@ export const orderAPI = {
 // ── PAYMENT ───────────────────────────────────────────────────────────────────
 export const paymentAPI = {
   initMomo:           (data) => api.post('/payment/momo/init', data),
+  verifyReturn:       (data) => api.post('/payment/momo/verify-return', data),
   checkSessionStatus: (id)   => api.get(`/payment/momo/session-status/${id}`),
   checkStatus:        (id)   => api.get(`/payment/momo/status/${id}`),
 };
@@ -183,6 +187,7 @@ export const staffAPI = {
   getById: (id)     => api.get(`/staffs/${id}`),
   create:  (data)   => api.post('/staffs', data),
   update:  (id, d)  => api.put(`/staffs/${id}`, d),
+  resign:  (id)     => api.patch(`/staffs/${id}/resign`),
   delete:  (id)     => api.delete(`/staffs/${id}`),
 };
 

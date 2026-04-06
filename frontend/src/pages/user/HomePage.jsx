@@ -15,8 +15,12 @@ export function HomePage() {
   const [activeCat, setActiveCat] = useState('all');
 
   const checkIsVoucherUsed = (voucher) => {
-    if (!user || !voucher.used_by) return false;
-    return voucher.used_by.some(uid => uid === user._id || uid?._id === user._id);
+    if (!user || (!user._id && !user.id) || !voucher.used_by) return false;
+    const userId = user._id || user.id;
+    return voucher.used_by.some(uid => {
+      const idStr = typeof uid === 'object' ? uid._id : uid;
+      return String(idStr) === String(userId);
+    });
   };
 
   const fetchProducts = useCallback(async (catId) => {
@@ -31,12 +35,18 @@ export function HomePage() {
 
   useEffect(() => {
     // Lấy 6 danh mục đầu tiên
-    categoryAPI.getAll().then(r => setCategories(r.data.data.slice(0, 6)));
+    categoryAPI.getAll().then(r => {
+      const cats = r.data.data.slice(0, 6);
+      setCategories(cats);
+      if (cats.length > 0) {
+        setActiveCat(cats[0]._id);
+        fetchProducts(cats[0]._id);
+      }
+    });
     // Lấy 3 voucher mới nhất
  voucherAPI.getAll({ limit: 3 })
       .then(r => setVouchers(r.data.data || []))
-      .catch(err => console.log("Không có quyền xem voucher, bỏ qua..."));     fetchProducts('all');
-  }, [fetchProducts]);
+      .catch(err => console.log("Không có quyền xem voucher, bỏ qua..."));  }, [fetchProducts]);
 
   return (
     <div className="space-y-16 pb-20">

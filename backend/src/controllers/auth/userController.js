@@ -27,16 +27,21 @@ exports.getUserProfile = async (req, res) => {
 // 2. TÌM KIẾM NÂNG CAO (Theo Username, Email, Role)
 exports.searchUsers = async (req, res) => {
     try {
-        const { username, email, type } = req.query;
+        const { username, email, type, page = 1, limit = 20 } = req.query;
         let filter = {};
         if (username) filter.username = { $regex: username, $options: 'i' };
-        
-        // Quan trọng: Phải lấy được cả customer_id
+
         const users = await User.find(filter)
             .populate('role_id', 'role_name')
-            .select('-password'); 
+            .populate('customer_id', 'full_name phone')
+            .populate('staff_id', 'full_name phone position')
+            .select('-password')
+            .sort({ createdAt: -1 })
+            .skip((Number(page) - 1) * Number(limit))
+            .limit(Number(limit));
 
-        res.status(200).json({ success: true, count: users.length, data: users });
+        const total = await User.countDocuments(filter);
+        res.status(200).json({ success: true, count: users.length, total, data: users });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

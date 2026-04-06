@@ -234,7 +234,46 @@ exports.sendRegisterOtp = async ({ to, full_name, otp }) => {
     });
 };
 
-// ─── 6. GỬI OTP RESET MẬT KHẨU ───────────────────────────────────────────────
+// ─── 6. THÔNG BÁO VẬN CHUYỂN (kèm phí ship) ─────────────────────────────────
+exports.sendShipmentCreatedEmail = async ({ to, full_name, order_id, carrier, tracking_code, shipping_fee, estimated_date }) => {
+    const feeFmt = Number(shipping_fee || 0).toLocaleString('vi-VN');
+    const estDate = estimated_date ? new Date(estimated_date).toLocaleDateString('vi-VN') : 'Đang cập nhật';
+    const orderUrl = `${process.env.FRONTEND_URL}/orders/${order_id}`;
+
+    await transporter.sendMail({
+        from: FROM,
+        to,
+        subject: `🚚 Đơn hàng #${order_id} đang được vận chuyển`,
+        html: `
+        <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;border:1px solid #eee;border-radius:8px;overflow:hidden">
+          <div style="background:#1a1a2e;padding:24px;text-align:center">
+            <h1 style="color:#fff;margin:0;font-size:22px">Fashion Store</h1>
+          </div>
+          <div style="padding:28px 32px">
+            <h2 style="color:#2980b9;margin-top:0">🚚 Đơn hàng đang được giao!</h2>
+            <p style="color:#555">Xin chào <strong>${full_name}</strong>,</p>
+            <p style="color:#555;line-height:1.7">Đơn hàng của bạn đã được bàn giao cho đơn vị vận chuyển và đang trên đường đến bạn.</p>
+            <div style="background:#f0f7ff;border-radius:8px;padding:16px;margin:16px 0">
+              <p style="margin:6px 0;color:#555"><strong>Mã đơn hàng:</strong> #${order_id}</p>
+              <p style="margin:6px 0;color:#555"><strong>Đơn vị vận chuyển:</strong> ${carrier || 'Đang cập nhật'}</p>
+              <p style="margin:6px 0;color:#555"><strong>Mã vận đơn:</strong> ${tracking_code || 'Đang cập nhật'}</p>
+              <p style="margin:6px 0;color:#555"><strong>Ngày dự kiến giao:</strong> ${estDate}</p>
+              ${shipping_fee > 0 ? `<p style="margin:6px 0;color:#e67e22"><strong>Phí vận chuyển:</strong> ${feeFmt}₫ <span style="font-size:12px">(sẽ được thu khi nhận hàng nếu chưa thanh toán)</span></p>` : ''}
+            </div>
+            <div style="text-align:center;margin:24px 0">
+              <a href="${orderUrl}" style="background:#1a1a2e;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold">
+                Theo dõi đơn hàng
+              </a>
+            </div>
+          </div>
+          <div style="background:#f5f5f5;padding:16px;text-align:center;font-size:12px;color:#999">
+            © Fashion Store — Cảm ơn bạn đã tin tưởng mua sắm!
+          </div>
+        </div>`
+    });
+};
+
+// ─── 7. GỬI OTP RESET MẬT KHẨU ───────────────────────────────────────────────
 exports.sendResetOtp = async ({ to, full_name, otp }) => {
     await transporter.sendMail({
         from: FROM,

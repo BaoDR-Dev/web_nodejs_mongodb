@@ -11,10 +11,15 @@ export function PaymentResultPage() {
   const hasRun = useRef(false);
 
   const success     = searchParams.get('success');
-  const momoOrderId = searchParams.get('momo_order_id') || sessionStorage.getItem('pending_momo_id');
+  const resultCode  = searchParams.get('resultCode');
+  // Chỉ lấy orderId từ URL — không dùng sessionStorage để tránh tạo đơn nhầm
+  const momoOrderId = searchParams.get('orderId') || searchParams.get('momo_order_id');
   const amount      = searchParams.get('amount');
-  const transId     = searchParams.get('trans_id');
+  const transId     = searchParams.get('transId') || searchParams.get('trans_id');
   const message     = searchParams.get('message');
+
+  // Chỉ thành công khi URL có resultCode=0 hoặc success=1 rõ ràng
+  const isSuccess = resultCode === '0' || success === '1';
 
   useEffect(() => {
     if (hasRun.current) return;
@@ -22,16 +27,18 @@ export function PaymentResultPage() {
 
     const verify = async () => {
       // ── HỦY / THẤT BẠI ───────────────────────────────────────────────────
-      // Order chưa được tạo → không cần cancel gì
-      if (success === '0' || !success) {
+      if (!isSuccess) {
         sessionStorage.removeItem('pending_momo_id');
         setStatus('cancelled');
         return;
       }
 
-      // ── SUCCESS=1: Gọi verify-return để backend xác minh với MoMo rồi tạo đơn
-      // Cách này hoạt động ngay cả khi IPN không đến được (localhost/dev)
-      if (!momoOrderId) { setStatus('failed'); return; }
+      // Phải có cả orderId lẫn transId mới là thanh toán thật
+      if (!momoOrderId || !transId) {
+        sessionStorage.removeItem('pending_momo_id');
+        setStatus('cancelled');
+        return;
+      }
 
       try {
         const { data } = await paymentAPI.verifyReturn({

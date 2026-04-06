@@ -175,7 +175,7 @@ exports.createOrder = async (req, res) => {
 
             await Voucher.findByIdAndUpdate(voucher._id, {
                 $inc: { used_count: 1 },
-                $push: { used_by: req.user._id }
+                $addToSet: { used_by: req.user._id }
             }, { session });
 
             voucher_id = voucher._id;
@@ -185,6 +185,7 @@ exports.createOrder = async (req, res) => {
 
         // ── BƯỚC 3: Tạo đơn hàng ─────────────────────────────────────────────
         const customer = await Customer.findOne({ user_id: req.user._id }).session(session);
+        const final_shipping_address = shipping_address || customer?.address || '';
 
         const newOrder = await Order.create([{
             order_type: 'OUT',
@@ -195,7 +196,7 @@ exports.createOrder = async (req, res) => {
             total_price,
             status: 'Draft',
             details: orderDetails,
-            shipping_address,
+            shipping_address: final_shipping_address,
             payments: [{ method: payment_method, amount: total_price }]
         }], { session });
 
@@ -573,8 +574,10 @@ exports.updateOrderStatus = async (req, res) => {
         const { status } = req.body;
         const validTransitions = {
             'Draft': ['Completed', 'Cancelled'],
+            'Shipping': ['Completed', 'Returned', 'Cancelled'],
             'Completed': [],
-            'Cancelled': []
+            'Cancelled': [],
+            'Returned': []
         };
 
         const order = await Order.findById(req.params.id).session(session);
@@ -721,6 +724,7 @@ exports.cancelMyOrder = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
+        const Shipment = require('../../models/orders/Shipment');
         const order = await Order.findById(req.params.id).session(session);
  
         if (!order) {
@@ -739,6 +743,16 @@ exports.cancelMyOrder = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: `Không thể hủy đơn hàng đã "${order.status}"`
+            });
+        }
+
+        // Không cho hủy nếu đã có đơn vận chuyển
+        const shipment = await Shipment.findOne({ order_id: order._id });
+        if (shipment) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: 'Đơn hàng đã được tạo vận chuyển, không thể hủy. Vui lòng liên hệ hỗ trợ.'
             });
         }
  
@@ -765,7 +779,7 @@ exports.cancelMyOrder = async (req, res) => {
                 quantity_change: detail.quantity,
                 quantity_before: 0,
                 quantity_after:  detail.quantity,
-                reason:          `Hoàn kho do khách hủy đơn MoMo #${order._id}`,
+                reason:          `Hoàn kho do khách hủy đơn #${order._id}`,
                 created_by:      req.user._id
             }], { session });
         }

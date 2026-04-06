@@ -6,6 +6,7 @@ const ProductVariantSchema = new mongoose.Schema({
     size_id: { type: mongoose.Schema.Types.ObjectId, ref: 'P_Size' },
     type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'P_Type' },
     price: { type: Number, required: true },
-    stock_quantity: { type: Number, default: 0 } // Tổng tồn thực tế
+    stock_quantity: { type: Number, default: 0 }, // Tổng tồn thực tế
+    is_active: { type: Boolean, default: true }
 }, { timestamps: true });
 module.exports = mongoose.model('ProductVariant', ProductVariantSchema);
