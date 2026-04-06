@@ -21,6 +21,7 @@ const orderRoutes    = require('./routes/orders/orderRoutes');
 const cartRoutes     = require('./routes/orders/cartRoutes');
 const shipmentRoutes = require('./routes/orders/shipmentRoutes');
 const returnRoutes   = require('./routes/orders/returnOrderRoutes');
+const carrierRoutes  = require('./routes/orders/carrierRoutes');
 
 // ── CUSTOMERS ─────────────────────────────────────────────────────────────────
 const customerRoutes = require('./routes/customers/customerRoutes');
@@ -84,6 +85,7 @@ app.use('/api/orders',    orderRoutes);
 app.use('/api/cart',      cartRoutes);
 app.use('/api/shipments', shipmentRoutes);
 app.use('/api/returns',   returnRoutes);
+app.use('/api/carriers',  carrierRoutes);
 
 // Customers
 app.use('/api/customers', customerRoutes);

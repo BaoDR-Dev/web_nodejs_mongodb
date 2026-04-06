@@ -3,6 +3,24 @@ import { productAPI, categoryAPI, brandAPI, attributeAPI } from '../../../api/se
 import { Table, Badge, Modal, Confirm, Field, Input, Select, Textarea, SearchBar, Pagination, fmtVND } from '../../../components/Common/UI';
 import { toast } from '../../../components/Common/Toast';
 
+// ── Upload ảnh thẳng lên Cloudinary từ frontend (không qua backend) ──────────
+async function uploadToCloudinary(file) {
+  const { data: sig } = await productAPI.getUploadSignature();
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('api_key', sig.api_key);
+  fd.append('timestamp', sig.timestamp);
+  fd.append('signature', sig.signature);
+  fd.append('folder', sig.folder);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloud_name}/image/upload`, {
+    method: 'POST', body: fd
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error?.message || 'Upload thất bại');
+  return json.secure_url;
+}
+
 // ── Component chọn & preview ảnh từ thiết bị ─────────────────────────────────
 function ImagePicker({ value, onChange }) {
   const inputRef = useRef();
@@ -103,8 +121,11 @@ export default function AdminProducts() {
     ])
       .then(([c, b, col, sz]) => {
         setCategories(c.data.data || []);
-        // brand controller trả { data: [...] } không có wrapper data.data
-        setBrands(b.data.data || b.data || []);
+        // brand controller: { success, count, data: [...] }
+        const brandList = Array.isArray(b.data.data) ? b.data.data
+                        : Array.isArray(b.data)      ? b.data
+                        : [];
+        setBrands(brandList);
         setColors(col.data.data || []);
         setSizes(sz.data.data || []);
       }).catch(() => {});
@@ -201,7 +222,6 @@ export default function AdminProducts() {
     e.preventDefault();
     setAddingVariant(true);
     try {
-      // 1. Tạo variant trước
       const { data: varRes } = await productAPI.addVariant(productDetail._id, {
         sku:      addVariantForm.sku,
         price:    addVariantForm.price,
@@ -210,12 +230,9 @@ export default function AdminProducts() {
       });
       const newVariantId = varRes.data._id;
 
-      // 2. Upload ảnh nếu có chọn file
       if (addVariantImageFile) {
-        const fd = new FormData();
-        fd.append('image', addVariantImageFile);
-        fd.append('is_primary', 'true');
-        await productAPI.uploadImage(newVariantId, fd);
+        const imageUrl = await uploadToCloudinary(addVariantImageFile);
+        await productAPI.addImage(newVariantId, { image_url: imageUrl, is_primary: true });
       }
 
       toast.success('Đã thêm biến thể!');
@@ -223,7 +240,7 @@ export default function AdminProducts() {
       setAddVariantForm({ sku: '', price: '', color_id: '', size_id: '' });
       setAddVariantImageFile(null);
       await refreshDetail();
-    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi thêm biến thể'); }
+    } catch (err) { toast.error(err.response?.data?.message || err.message || 'Lỗi thêm biến thể'); }
     finally { setAddingVariant(false); }
   };
 
@@ -253,22 +270,19 @@ export default function AdminProducts() {
         size_id:  editVariantForm.size_id  || undefined,
       });
 
-      // Upload ảnh mới nếu user chọn file — xóa ảnh cũ trước
       if (editVariantImageFile) {
+        // Xóa ảnh cũ trước
         const oldImg = editingVariant.images?.[0];
-        if (oldImg?._id) {
-          await productAPI.deleteImage(oldImg._id).catch(() => {});
-        }
-        const fd = new FormData();
-        fd.append('image', editVariantImageFile);
-        fd.append('is_primary', 'true');
-        await productAPI.uploadImage(editingVariant._id, fd);
+        if (oldImg?._id) await productAPI.deleteImage(oldImg._id).catch(() => {});
+        // Upload ảnh mới thẳng lên Cloudinary
+        const imageUrl = await uploadToCloudinary(editVariantImageFile);
+        await productAPI.addImage(editingVariant._id, { image_url: imageUrl, is_primary: true });
       }
 
       toast.success('Đã cập nhật biến thể!');
       setShowEditVariantModal(false);
       await refreshDetail();
-    } catch (err) { toast.error(err.response?.data?.message || 'Lỗi cập nhật biến thể'); }
+    } catch (err) { toast.error(err.response?.data?.message || err.message || 'Lỗi cập nhật biến thể'); }
     finally { setSavingVariant(false); }
   };
 
@@ -280,7 +294,7 @@ export default function AdminProducts() {
       </div>
     )},
     { header: 'Danh mục',    render: r => r.category_id?.name || '—' },
-    { header: 'Thương hiệu', render: r => r.brand_id?.name || '—' },
+    { header: 'Thương hiệu', render: r => r.brand_id?.brand_name || r.brand_id?.name || '—' },
     { header: 'Biến thể',    render: r => <span className="font-mono text-sm">{r.variants?.length || 0}</span> },
     { header: 'Trạng thái',  render: r => (
       <Badge color={r.is_active !== false ? 'green' : 'red'}>
@@ -350,7 +364,7 @@ export default function AdminProducts() {
             <Field label="Thương hiệu">
               <Select value={createForm.brand_id} onChange={e => setCreateForm({ ...createForm, brand_id: e.target.value })}>
                 <option value="">Chọn thương hiệu</option>
-                {brands.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
+                {brands.map(b => <option key={b._id} value={b._id}>{b.brand_name || b.name}</option>)}
               </Select>
             </Field>
           </div>
@@ -383,7 +397,7 @@ export default function AdminProducts() {
               <div>
                 <p className="text-sm text-gray-500">Mã SKU: <span className="font-mono text-gray-800 font-bold">{productDetail.sku}</span></p>
                 <p className="text-sm text-gray-500">Danh mục: <span className="font-bold">{productDetail.category_id?.name || '—'}</span></p>
-                <p className="text-sm text-gray-500">Thương hiệu: <span className="font-bold">{productDetail.brand_id?.name || '—'}</span></p>
+                <p className="text-sm text-gray-500">Thương hiệu: <span className="font-bold">{productDetail.brand_id?.brand_name || productDetail.brand_id?.name || '—'}</span></p>
               </div>
               <button onClick={() => setShowAddVariantModal(true)}
                 className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
@@ -505,7 +519,7 @@ export default function AdminProducts() {
               <Select value={editProductForm.brand_id}
                 onChange={e => setEditProductForm({ ...editProductForm, brand_id: e.target.value })}>
                 <option value="">Chọn thương hiệu</option>
-                {brands.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
+                {brands.map(b => <option key={b._id} value={b._id}>{b.brand_name || b.name}</option>)}
               </Select>
             </Field>
           </div>

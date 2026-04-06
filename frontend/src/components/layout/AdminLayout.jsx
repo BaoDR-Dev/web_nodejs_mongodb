@@ -16,6 +16,7 @@ const menu = [
     { path: '/admin/import-orders', icon: '📥', label: 'Nhập kho' },
     { path: '/admin/orders',    icon: '📦', label: 'Đơn hàng' },
     { path: '/admin/shipments', icon: '🚚', label: 'Vận chuyển' },
+    { path: '/admin/carriers',  icon: '🏢', label: 'Đơn vị vận chuyển' },
     { path: '/admin/returns',   icon: '↩️', label: 'Đổi trả' },
   ]},
   { group: 'Kho hàng', items: [

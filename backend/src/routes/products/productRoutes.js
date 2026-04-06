@@ -3,6 +3,7 @@ const router = express.Router();
 const proCtrl = require('../../controllers/products/productController');
 const imgCtrl = require('../../controllers/products/productImageController');
 const galleryCtrl = require('../../controllers/products/galleryController');
+const uploadCtrl = require('../../controllers/products/uploadController');
 const uploadCloud = require('../../config/cloudinary');
 const { protect, restrictTo } = require('../../middlewares/auth');
 
@@ -19,6 +20,9 @@ router.get('/:id', proCtrl.getProductDetails);
 // QUYỀN CẦN ĐĂNG NHẬP (protect)
 // ==========================================
 router.use(protect); 
+
+// Lấy signature để frontend upload thẳng lên Cloudinary
+router.get('/upload/signature', restrictTo('Staff', 'Manager', 'Admin'), uploadCtrl.getSignature);
 
 // --- Quyền cho Staff, Manager, Admin ---
 router.patch('/:id/status', restrictTo('Staff', 'Manager', 'Admin'), proCtrl.toggleStatus);

@@ -89,7 +89,7 @@ exports.searchProducts = async (req, res) => {
         const [products, total] = await Promise.all([
             Product.find(productQuery)
                 .populate('category_id', 'name')
-                .populate('brand_id', 'name')
+                .populate('brand_id', 'brand_name name')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit))
@@ -138,7 +138,7 @@ exports.getProductDetails = async (req, res) => {
     try {
         const product = await Product.findById(req.params.id)
             .populate('category_id', 'name')
-            .populate('brand_id', 'name origin');
+            .populate('brand_id', 'brand_name name origin');
         if (!product) return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm' });
 
         // Admin truyền ?show_hidden=true để xem cả sản phẩm đã ẩn, variant không xét is_active

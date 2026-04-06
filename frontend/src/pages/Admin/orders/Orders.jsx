@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { orderAPI, shipmentAPI } from '../../../api/services';
+import { orderAPI, shipmentAPI, carrierAPI } from '../../../api/services';
 import { Table, Badge, Modal, Field, Input, Select, Pagination, fmtVND, fmtDate, statusColor, PageLoader } from '../../../components/Common/UI';
 import { toast } from '../../../components/Common/Toast';
 
@@ -15,8 +15,13 @@ export default function AdminOrders() {
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [showShipment, setShowShipment] = useState(false);
-  const [shipForm, setShipForm] = useState({ carrier: '', tracking_code: '', shipping_fee: '', shipping_address: '' });
+  const [shipForm, setShipForm] = useState({ carrier_id: '', tracking_code: '', shipping_fee: '', shipping_address: '' });
+  const [carriers, setCarriers] = useState([]);
   const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    carrierAPI.getAll().then(r => setCarriers(r.data.data || [])).catch(() => {});
+  }, []);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -48,9 +53,20 @@ export default function AdminOrders() {
     e.preventDefault();
     setProcessing(true);
     try {
-      await shipmentAPI.create({ ...shipForm, order_id: selected._id });
+      const carrier = carriers.find(c => c._id === shipForm.carrier_id);
+      const trackingCode = shipForm.tracking_code ||
+        `${carrier?.code || 'VC'}${Date.now().toString().slice(-8)}`;
+
+      await shipmentAPI.create({
+        order_id:         selected._id,
+        carrier:          carrier?.name || '',
+        tracking_code:    trackingCode,
+        shipping_fee:     shipForm.shipping_fee,
+        shipping_address: shipForm.shipping_address || selected.shipping_address,
+      });
       toast.success('Đã tạo vận đơn! Đơn hàng chuyển sang Đang vận chuyển.');
       setShowShipment(false);
+      setShipForm({ carrier_id: '', tracking_code: '', shipping_fee: '', shipping_address: '' });
       fetch();
     } catch (err) { toast.error(err.response?.data?.message || 'Lỗi tạo vận đơn'); }
     finally { setProcessing(false); }
@@ -191,22 +207,27 @@ export default function AdminOrders() {
         )}
       </Modal>
 
-      {/* Shipment Modal */}
       <Modal open={showShipment} onClose={() => setShowShipment(false)} title="Tạo vận đơn">
         <form onSubmit={handleCreateShipment} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Đơn vị vận chuyển" required>
-              <Input value={shipForm.carrier} onChange={e => setShipForm({...shipForm, carrier: e.target.value})} placeholder="GHN, GHTK, ..." required />
+              <select value={shipForm.carrier_id}
+                onChange={e => setShipForm({...shipForm, carrier_id: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required>
+                <option value="">-- Chọn đơn vị --</option>
+                {carriers.map(c => <option key={c._id} value={c._id}>{c.name} ({c.code})</option>)}
+              </select>
             </Field>
-            <Field label="Mã vận đơn">
-              <Input value={shipForm.tracking_code} onChange={e => setShipForm({...shipForm, tracking_code: e.target.value})} placeholder="GHN12345..." />
+            <Field label="Mã vận đơn (tự tạo nếu để trống)">
+              <Input value={shipForm.tracking_code} onChange={e => setShipForm({...shipForm, tracking_code: e.target.value})} placeholder="Tự động tạo..." />
             </Field>
             <Field label="Phí vận chuyển">
               <Input type="number" value={shipForm.shipping_fee} onChange={e => setShipForm({...shipForm, shipping_fee: e.target.value})} placeholder="35000" />
             </Field>
           </div>
           <Field label="Địa chỉ giao hàng">
-            <Input value={shipForm.shipping_address} onChange={e => setShipForm({...shipForm, shipping_address: e.target.value})} placeholder="123 Lê Lợi, Q.1, TP.HCM" />
+            <Input value={shipForm.shipping_address} onChange={e => setShipForm({...shipForm, shipping_address: e.target.value})}
+              placeholder={selected?.shipping_address || '123 Lê Lợi, Q.1, TP.HCM'} />
           </Field>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setShowShipment(false)} className="px-4 py-2 border rounded-lg text-sm">Hủy</button>

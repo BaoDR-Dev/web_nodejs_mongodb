@@ -31,6 +31,7 @@ export const productAPI = {
   updateVariant:   (vid, d) => api.put(`/products/variant/${vid}`, d),
   addImage:        (vid, d) => api.post(`/products/variants/${vid}/images`, d),
   uploadImage:     (vid, formData) => api.post(`/products/variants/${vid}/images/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  getUploadSignature: () => api.get('/products/upload/signature'),
   setPrimaryImage: (iid)    => api.patch(`/products/images/${iid}/set-primary`),
   deleteImage:     (iid)    => api.delete(`/products/images/${iid}`),
 };
@@ -130,6 +131,15 @@ export const shipmentAPI = {
   create:        (data)     => api.post('/shipments', data),
   update:        (id, data) => api.put(`/shipments/${id}`, data),
   updateStatus:  (id, data) => api.patch(`/shipments/${id}/status`, data),
+};
+
+// ── CARRIERS ──────────────────────────────────────────────────────────────────
+export const carrierAPI = {
+  getAll:  ()       => api.get('/carriers'),
+  create:  (data)   => api.post('/carriers', data),
+  update:  (id, d)  => api.put(`/carriers/${id}`, d),
+  remove:  (id)     => api.delete(`/carriers/${id}`),
+  toggle:  (id)     => api.patch(`/carriers/${id}/toggle`),
 };
 
 // ── RETURNS ───────────────────────────────────────────────────────────────────

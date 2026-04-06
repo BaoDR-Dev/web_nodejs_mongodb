@@ -25,7 +25,8 @@ exports.createStaff = async (req, res) => {
             username,
             password: hashedPassword,
             email,
-            role_id // ID của role 'Staff' hoặc 'Admin'
+            role_id,
+            is_verified: true  // Nhân viên do admin tạo, không cần xác thực OTP
         });
         await newUser.save();
 

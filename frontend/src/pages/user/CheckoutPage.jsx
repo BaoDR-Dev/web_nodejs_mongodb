@@ -224,7 +224,6 @@ export function CheckoutPage() {
             </div>
             {payMethod === 'Momo' && (
               <div className="mt-3 space-y-2">
-                <p className="text-xs text-gray-500 font-medium">Chọn hình thức thanh toán MoMo:</p>
                 <div className="grid grid-cols-2 gap-2">
                   <label className={`flex items-center gap-2 p-2.5 border rounded-xl cursor-pointer text-sm transition ${momoType === 'payWithATM' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'}`}>
                     <input type="radio" name="momoType" value="payWithATM" checked={momoType === 'payWithATM'} onChange={() => setMomoType('payWithATM')} className="accent-purple-600" />

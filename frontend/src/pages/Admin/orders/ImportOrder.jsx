@@ -174,7 +174,7 @@ export default function AdminImportOrder() {
             <Table columns={[
               { header: '#', render: r => <span className="font-mono text-xs">{r._id.slice(-8)}</span> },
               { header: 'Nhà cung cấp', render: r => r.supplier_id?.name || '—' },
-              { header: 'Tổng tiền', render: r => <span className="font-bold text-green-600">{fmtVND(r.total_amount)}</span> },
+              { header: 'Tổng tiền', render: r => <span className="font-bold text-green-600">{fmtVND(r.total_price)}</span> },
               { header: 'Trạng thái', render: r => <Badge color={STATUS_COLORS[r.status]}>{STATUS_LABELS[r.status] || r.status}</Badge> },
               { header: 'Ngày tạo', render: r => <span className="text-xs text-gray-400">{fmtDate(r.createdAt)}</span> },
               { header: 'Thao tác', render: r => (
@@ -333,7 +333,7 @@ export default function AdminImportOrder() {
               </table>
             </div>
             <div className="bg-gray-50 rounded-xl p-3">
-              <div className="flex justify-between font-bold text-base"><span>Tổng tiền</span><span className="text-blue-600">{fmtVND(selected.total_amount)}</span></div>
+              <div className="flex justify-between font-bold text-base"><span>Tổng tiền</span><span className="text-blue-600">{fmtVND(selected.total_price)}</span></div>
             </div>
           </div>
         )}
