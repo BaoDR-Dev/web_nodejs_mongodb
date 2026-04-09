@@ -1,10 +1,9 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // Sử dụng port 5000 để trỏ đúng tới Backend
-  baseURL: 'http://localhost:5000/api', 
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
   timeout: 15000,
-  withCredentials: true // Rất quan trọng để gửi kèm cookie/session
+  withCredentials: true
 });
 
 // 1. Thêm Interceptor cho Request

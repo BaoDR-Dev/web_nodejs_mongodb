@@ -46,16 +46,18 @@ const aiRoutes = require('./routes/ai/aiRoutes');
 const paymentRoutes = require('./routes/payment/paymentRoutes');
 
 const app = express();
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+    .split(',').map(o => o.trim().replace(/\/$/, ''));
+
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://localhost:5000'], // Thêm cả port 5000 nếu cần
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-// ── MIDDLEWARE ────────────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
-    .split(',')
-    .map(o => o.trim().replace(/\/$/, ''));
 
 
 app.use(express.json());

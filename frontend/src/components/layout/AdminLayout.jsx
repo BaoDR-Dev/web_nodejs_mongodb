@@ -33,7 +33,7 @@ const menu = [
   { group: 'Nhân sự', items: [
     { path: '/admin/staff', icon: '👤', label: 'Nhân viên' },
     { path: '/admin/users', icon: '🔑', label: 'Tài khoản' },
-    { path: '/admin/roles', icon: '🛡️', label: 'Phân quyền' },
+    // { path: '/admin/roles', icon: '🛡️', label: 'Phân quyền' },
   ]},
 ];
 
@@ -102,7 +102,7 @@ export default function AdminLayout({ children }) {
           <h1 className="text-sm font-semibold text-gray-800 flex-1">
             {menu.flatMap(g => g.items).find(i => i.path === location.pathname)?.label || 'Dashboard'}
           </h1>
-          <Link to="/" className="text-xs text-blue-600 hover:underline">← Về cửa hàng</Link>
+          {/* <Link to="/" className="text-xs text-blue-600 hover:underline">← Về cửa hàng</Link> */}
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
             {user?.username?.[0]?.toUpperCase()}
           </div>
